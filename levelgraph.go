@@ -131,6 +131,36 @@ func (db *DB) Close() error {
 	return db.store.Close()
 }
 
+// CloseGracefully closes the database gracefully, waiting for the context
+// to be cancelled or for a clean shutdown. This allows pending read operations
+// to complete before closing.
+func (db *DB) CloseGracefully(ctx context.Context) error {
+	// First, mark as closing to prevent new writes
+	db.mu.Lock()
+	if db.closed {
+		db.mu.Unlock()
+		return nil
+	}
+
+	// Check context before proceeding
+	select {
+	case <-ctx.Done():
+		db.mu.Unlock()
+		return fmt.Errorf("levelgraph: graceful close: %w", ctx.Err())
+	default:
+	}
+
+	db.closed = true
+	err := db.store.Close()
+	db.mu.Unlock()
+
+	if db.options.Logger != nil {
+		db.options.Logger.Info("database closed gracefully")
+	}
+
+	return err
+}
+
 // IsOpen returns true if the database is open.
 func (db *DB) IsOpen() bool {
 	db.mu.RLock()
@@ -311,11 +341,17 @@ func (db *DB) getIteratorUnlocked(pattern *Pattern) (*TripleIterator, error) {
 	var iter iterator.Iterator
 	iter = db.store.NewIterator(&util.Range{Start: startKey, Limit: endKey}, nil)
 
+	// Apply default limit if pattern has no limit and a default is configured
+	limit := pattern.Limit
+	if limit <= 0 && db.options.DefaultLimit > 0 {
+		limit = db.options.DefaultLimit
+	}
+
 	return &TripleIterator{
 		iter:    iter,
 		pattern: pattern,
 		offset:  pattern.Offset,
-		limit:   pattern.Limit,
+		limit:   limit,
 		reverse: pattern.Reverse,
 	}, nil
 }
@@ -328,9 +364,9 @@ func (db *DB) GenerateBatch(triple *Triple, action string) ([]BatchOp, error) {
 
 // BatchOp represents a single batch operation.
 type BatchOp struct {
-	Type  string // "put" or "del"
-	Key   []byte
-	Value []byte
+	Type  string `json:"type"` // "put" or "del"
+	Key   []byte `json:"key"`
+	Value []byte `json:"value"`
 }
 
 // generateBatchOps generates the batch operations for all indexes.

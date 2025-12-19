@@ -129,9 +129,13 @@ func (db *DB) Search(ctx context.Context, patterns []*Pattern, opts *SearchOptio
 		}
 	}
 
-	// Apply limit
-	if opts.Limit > 0 && opts.Limit < len(solutions) {
-		solutions = solutions[:opts.Limit]
+	// Apply limit (use default limit if no explicit limit provided)
+	limit := opts.Limit
+	if limit <= 0 && db.options.DefaultLimit > 0 {
+		limit = db.options.DefaultLimit
+	}
+	if limit > 0 && limit < len(solutions) {
+		solutions = solutions[:limit]
 	}
 
 	// Apply materialization if requested

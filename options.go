@@ -50,6 +50,11 @@ type Options struct {
 	// Logger is an optional structured logger for debug output.
 	// When nil, no logging is performed.
 	Logger *slog.Logger
+
+	// DefaultLimit is the default maximum number of results for Get/Search operations.
+	// When set to a positive value, this limit is applied if no explicit limit is provided.
+	// 0 means no default limit (unbounded, the default for backward compatibility).
+	DefaultLimit int
 }
 
 // Option is a function that configures Options.
@@ -113,5 +118,16 @@ func WithSortJoin() Option {
 func WithLogger(l *slog.Logger) Option {
 	return func(o *Options) {
 		o.Logger = l
+	}
+}
+
+// WithDefaultLimit sets the default maximum result limit for Get/Search operations.
+// When set to a positive value, this limit is applied if no explicit limit is provided
+// in the query. This is useful for preventing unbounded result sets that could
+// exhaust memory or cause performance issues.
+// 0 means no default limit (the default for backward compatibility).
+func WithDefaultLimit(limit int) Option {
+	return func(o *Options) {
+		o.DefaultLimit = limit
 	}
 }

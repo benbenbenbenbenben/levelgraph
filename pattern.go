@@ -24,7 +24,10 @@
 
 package levelgraph
 
-import "bytes"
+import (
+	"bytes"
+	"strconv"
+)
 
 // Pattern represents a query pattern that can match triples.
 // Each field can be:
@@ -79,11 +82,8 @@ func normalizePatternValue(v interface{}) interface{} {
 	case *Variable:
 		return val
 	case bool:
-		// Handle false as a valid value (like JS version)
-		if !val {
-			return []byte("false")
-		}
-		return []byte("true")
+		// Convert boolean to its string representation using strconv for clarity
+		return []byte(strconv.FormatBool(val))
 	default:
 		return nil
 	}
