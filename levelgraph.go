@@ -52,6 +52,7 @@
 package levelgraph
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -70,16 +71,30 @@ var (
 	ErrInvalidTriple = errors.New("levelgraph: invalid triple - subject, predicate, and object are required")
 )
 
+// KVStore defines the interface for the underlying key-value store.
+type KVStore interface {
+	Get(key []byte, ro *opt.ReadOptions) (value []byte, err error)
+	Put(key, value []byte, wo *opt.WriteOptions) error
+	Delete(key []byte, wo *opt.WriteOptions) error
+	Write(batch *leveldb.Batch, wo *opt.WriteOptions) error
+	NewIterator(slice *util.Range, ro *opt.ReadOptions) iterator.Iterator
+	Close() error
+}
+
 // DB represents a LevelGraph database.
 type DB struct {
-	ldb     *leveldb.DB
-	options *Options
-	closed  bool
-	mu      sync.RWMutex
+	store          KVStore
+	options        *Options
+	closed         bool
+	mu             sync.RWMutex
+	journalCounter uint64
 }
 
 // Open opens or creates a LevelGraph database at the specified path.
 func Open(path string, opts ...Option) (*DB, error) {
+	if path == "" {
+		return nil, errors.New("levelgraph: path is required")
+	}
 	options := applyOptions(opts...)
 
 	ldb, err := leveldb.OpenFile(path, &opt.Options{})
@@ -88,17 +103,17 @@ func Open(path string, opts ...Option) (*DB, error) {
 	}
 
 	return &DB{
-		ldb:     ldb,
+		store:   ldb,
 		options: options,
 	}, nil
 }
 
-// OpenWithDB wraps an existing LevelDB instance with LevelGraph.
-// This is useful for using custom LevelDB configurations or in-memory databases.
-func OpenWithDB(ldb *leveldb.DB, opts ...Option) *DB {
+// OpenWithDB wraps an existing KVStore instance with LevelGraph.
+// This is useful for using custom configurations or in-memory databases.
+func OpenWithDB(store KVStore, opts ...Option) *DB {
 	options := applyOptions(opts...)
 	return &DB{
-		ldb:     ldb,
+		store:   store,
 		options: options,
 	}
 }
@@ -113,7 +128,7 @@ func (db *DB) Close() error {
 	}
 
 	db.closed = true
-	return db.ldb.Close()
+	return db.store.Close()
 }
 
 // IsOpen returns true if the database is open.
@@ -130,24 +145,30 @@ func (db *DB) V(name string) *Variable {
 }
 
 // Put inserts one or more triples into the database.
-func (db *DB) Put(triples ...*Triple) error {
+func (db *DB) Put(ctx context.Context, triples ...*Triple) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
-		return ErrClosed
+		return fmt.Errorf("levelgraph: %w", ErrClosed)
+	}
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("levelgraph: %w", ctx.Err())
+	default:
 	}
 
 	batch := new(leveldb.Batch)
 
 	for _, triple := range triples {
 		if err := validateTriple(triple); err != nil {
-			return err
+			return fmt.Errorf("levelgraph: %w", err)
 		}
 
 		ops, err := db.generateBatchOps(triple, "put")
 		if err != nil {
-			return err
+			return fmt.Errorf("levelgraph: %w", err)
 		}
 
 		for _, op := range ops {
@@ -157,13 +178,13 @@ func (db *DB) Put(triples ...*Triple) error {
 		// Record in journal if enabled
 		if db.options.JournalEnabled {
 			if err := db.recordJournalEntry(batch, "put", triple); err != nil {
-				return err
+				return fmt.Errorf("levelgraph: journal: %w", err)
 			}
 		}
 	}
 
-	if err := db.ldb.Write(batch, nil); err != nil {
-		return err
+	if err := db.store.Write(batch, nil); err != nil {
+		return fmt.Errorf("levelgraph: write batch: %w", err)
 	}
 
 	if db.options.Logger != nil {
@@ -173,24 +194,30 @@ func (db *DB) Put(triples ...*Triple) error {
 }
 
 // Del deletes one or more triples from the database.
-func (db *DB) Del(triples ...*Triple) error {
+func (db *DB) Del(ctx context.Context, triples ...*Triple) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
-		return ErrClosed
+		return fmt.Errorf("levelgraph: %w", ErrClosed)
+	}
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("levelgraph: %w", ctx.Err())
+	default:
 	}
 
 	batch := new(leveldb.Batch)
 
 	for _, triple := range triples {
 		if err := validateTriple(triple); err != nil {
-			return err
+			return fmt.Errorf("levelgraph: %w", err)
 		}
 
 		ops, err := db.generateBatchOps(triple, "del")
 		if err != nil {
-			return err
+			return fmt.Errorf("levelgraph: %w", err)
 		}
 
 		for _, op := range ops {
@@ -200,13 +227,13 @@ func (db *DB) Del(triples ...*Triple) error {
 		// Record in journal if enabled
 		if db.options.JournalEnabled {
 			if err := db.recordJournalEntry(batch, "del", triple); err != nil {
-				return err
+				return fmt.Errorf("levelgraph: journal: %w", err)
 			}
 		}
 	}
 
-	if err := db.ldb.Write(batch, nil); err != nil {
-		return err
+	if err := db.store.Write(batch, nil); err != nil {
+		return fmt.Errorf("levelgraph: write batch: %w", err)
 	}
 
 	if db.options.Logger != nil {
@@ -216,12 +243,18 @@ func (db *DB) Del(triples ...*Triple) error {
 }
 
 // Get retrieves triples matching the given pattern.
-func (db *DB) Get(pattern *Pattern) ([]*Triple, error) {
+func (db *DB) Get(ctx context.Context, pattern *Pattern) ([]*Triple, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
-		return nil, ErrClosed
+		return nil, fmt.Errorf("levelgraph: %w", ErrClosed)
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("levelgraph: %w", ctx.Err())
+	default:
 	}
 
 	return db.getUnlocked(pattern)
@@ -253,7 +286,7 @@ func (db *DB) getUnlocked(pattern *Pattern) ([]*Triple, error) {
 }
 
 // GetIterator returns an iterator for triples matching the pattern.
-func (db *DB) GetIterator(pattern *Pattern) (*TripleIterator, error) {
+func (db *DB) GetIterator(ctx context.Context, pattern *Pattern) (*TripleIterator, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -276,11 +309,7 @@ func (db *DB) getIteratorUnlocked(pattern *Pattern) (*TripleIterator, error) {
 	endKey := GenKeyWithUpperBound(index, pattern)
 
 	var iter iterator.Iterator
-	if pattern.Reverse {
-		iter = db.ldb.NewIterator(&util.Range{Start: startKey, Limit: endKey}, nil)
-	} else {
-		iter = db.ldb.NewIterator(&util.Range{Start: startKey, Limit: endKey}, nil)
-	}
+	iter = db.store.NewIterator(&util.Range{Start: startKey, Limit: endKey}, nil)
 
 	return &TripleIterator{
 		iter:    iter,

@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
@@ -106,7 +107,7 @@ func cmdAdd(args []string) {
 	defer db.Close()
 
 	triple := levelgraph.NewTripleFromStrings(args[0], args[1], args[2])
-	if err := db.Put(triple); err != nil {
+	if err := db.Put(context.Background(), triple); err != nil {
 		fmt.Printf("Error adding triple: %v\n", err)
 		os.Exit(1)
 	}
@@ -128,7 +129,7 @@ func cmdDel(args []string) {
 	defer db.Close()
 
 	triple := levelgraph.NewTripleFromStrings(args[0], args[1], args[2])
-	if err := db.Del(triple); err != nil {
+	if err := db.Del(context.Background(), triple); err != nil {
 		fmt.Printf("Error deleting triple: %v\n", err)
 		os.Exit(1)
 	}
@@ -161,7 +162,7 @@ func cmdFind(args []string) {
 		pattern.Object = []byte(args[2])
 	}
 
-	results, err := db.Get(pattern)
+	results, err := db.Get(context.Background(), pattern)
 	if err != nil {
 		fmt.Printf("Error searching: %v\n", err)
 		os.Exit(1)
@@ -191,7 +192,7 @@ func cmdFrom(args []string) {
 	}
 	defer db.Close()
 
-	results, err := db.Get(&levelgraph.Pattern{
+	results, err := db.Get(context.Background(), &levelgraph.Pattern{
 		Subject: []byte(args[0]),
 	})
 	if err != nil {
@@ -241,7 +242,7 @@ func cmdPath(args []string) {
 		current := queue[0]
 		queue = queue[1:]
 
-		results, err := db.Get(&levelgraph.Pattern{
+		results, err := db.Get(context.Background(), &levelgraph.Pattern{
 			Subject: []byte(current.node),
 		})
 		if err != nil {
@@ -324,7 +325,7 @@ func cmdJoin(args []string) {
 		Object:    parseValue(args[5]),
 	}
 
-	results, err := db.Search([]*levelgraph.Pattern{pattern1, pattern2}, nil)
+	results, err := db.Search(context.Background(), []*levelgraph.Pattern{pattern1, pattern2}, nil)
 	if err != nil {
 		fmt.Printf("Error searching: %v\n", err)
 		os.Exit(1)
@@ -407,7 +408,7 @@ func cmdSync(args []string) {
 		}
 
 		// Check existing hash
-		existingResults, err := db.Get(&levelgraph.Pattern{
+		existingResults, err := db.Get(context.Background(), &levelgraph.Pattern{
 			Subject:   []byte(fileKey),
 			Predicate: []byte("has:sha256"),
 		})
@@ -432,13 +433,13 @@ func cmdSync(args []string) {
 		statuses = append(statuses, status)
 
 		// Add/update triples
-		db.Put(levelgraph.NewTripleFromStrings("nolij:root", "contains:file", fileKey))
+		db.Put(context.Background(), levelgraph.NewTripleFromStrings("nolij:root", "contains:file", fileKey))
 
 		// Delete old hash if exists
 		if status.oldHash != "" {
-			db.Del(levelgraph.NewTripleFromStrings(fileKey, "has:sha256", status.oldHash))
+			db.Del(context.Background(), levelgraph.NewTripleFromStrings(fileKey, "has:sha256", status.oldHash))
 		}
-		db.Put(levelgraph.NewTripleFromStrings(fileKey, "has:sha256", hash))
+		db.Put(context.Background(), levelgraph.NewTripleFromStrings(fileKey, "has:sha256", hash))
 
 		statusIcon := map[string]string{"new": "✚", "synced": "✓", "desynced": "↻"}[status.status]
 		fmt.Printf("  %s %s\n", statusIcon, path)
@@ -501,11 +502,11 @@ func hashString(s string) string {
 
 func syncLinks(db *levelgraph.DB, fileKey, content string) {
 	// Remove old link predicates
-	results, _ := db.Get(&levelgraph.Pattern{Subject: []byte(fileKey)})
+	results, _ := db.Get(context.Background(), &levelgraph.Pattern{Subject: []byte(fileKey)})
 	for _, t := range results {
 		pred := string(t.Predicate)
 		if strings.HasPrefix(pred, "text:links:") {
-			db.Del(t)
+			db.Del(context.Background(), t)
 		}
 	}
 
@@ -520,7 +521,7 @@ func syncLinks(db *levelgraph.DB, fileKey, content string) {
 				col := match[0]
 				url := line[match[4]:match[5]]
 				predicate := fmt.Sprintf("text:links:%d:%d", lineNum+1, col+1)
-				db.Put(levelgraph.NewTripleFromStrings(fileKey, predicate, url))
+				db.Put(context.Background(), levelgraph.NewTripleFromStrings(fileKey, predicate, url))
 			}
 		}
 	}
@@ -528,11 +529,11 @@ func syncLinks(db *levelgraph.DB, fileKey, content string) {
 
 func syncCodeBlocks(db *levelgraph.DB, fileKey, content string) {
 	// Remove old codeblock predicates
-	results, _ := db.Get(&levelgraph.Pattern{Subject: []byte(fileKey)})
+	results, _ := db.Get(context.Background(), &levelgraph.Pattern{Subject: []byte(fileKey)})
 	for _, t := range results {
 		pred := string(t.Predicate)
 		if strings.HasPrefix(pred, "text:includes:") {
-			db.Del(t)
+			db.Del(context.Background(), t)
 		}
 	}
 
@@ -562,11 +563,11 @@ func syncCodeBlocks(db *levelgraph.DB, fileKey, content string) {
 
 				// Add file -> codeblock relationship
 				predicate := fmt.Sprintf("text:includes:%d:%d", blockStart, blockEnd)
-				db.Put(levelgraph.NewTripleFromStrings(fileKey, predicate, codeblockKey))
+				db.Put(context.Background(), levelgraph.NewTripleFromStrings(fileKey, predicate, codeblockKey))
 
 				// Add codeblock metadata if present
 				if blockInfo != "" {
-					db.Put(levelgraph.NewTripleFromStrings(codeblockKey, "codeblock:has meta:raw", blockInfo))
+					db.Put(context.Background(), levelgraph.NewTripleFromStrings(codeblockKey, "codeblock:has meta:raw", blockInfo))
 				}
 			}
 		} else if inBlock {
@@ -586,7 +587,7 @@ func cmdStats() {
 	}
 	defer db.Close()
 
-	results, err := db.Get(&levelgraph.Pattern{})
+	results, err := db.Get(context.Background(), &levelgraph.Pattern{})
 	if err != nil {
 		fmt.Printf("Error querying: %v\n", err)
 		os.Exit(1)
@@ -618,7 +619,7 @@ func cmdDump() {
 	}
 	defer db.Close()
 
-	results, err := db.Get(&levelgraph.Pattern{})
+	results, err := db.Get(context.Background(), &levelgraph.Pattern{})
 	if err != nil {
 		fmt.Printf("Error querying: %v\n", err)
 		os.Exit(1)

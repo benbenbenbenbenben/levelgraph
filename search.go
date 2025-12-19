@@ -24,6 +24,10 @@
 
 package levelgraph
 
+import (
+	"context"
+)
+
 // SearchOptions configures search behavior.
 type SearchOptions struct {
 	// Limit restricts the number of results (0 means no limit)
@@ -42,7 +46,7 @@ type SearchOptions struct {
 
 // Search executes a search query with one or more patterns.
 // It performs joins across patterns, binding variables as it matches triples.
-func (db *DB) Search(patterns []*Pattern, opts *SearchOptions) ([]Solution, error) {
+func (db *DB) Search(ctx context.Context, patterns []*Pattern, opts *SearchOptions) ([]Solution, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -69,6 +73,12 @@ func (db *DB) Search(patterns []*Pattern, opts *SearchOptions) ([]Solution, erro
 
 	// Process each pattern in sequence, joining with previous solutions
 	for _, pattern := range patterns {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
 		var newSolutions []Solution
 
 		for _, solution := range solutions {
@@ -174,41 +184,204 @@ func (db *DB) materializeSolutions(solutions []Solution, pattern *Pattern) ([]So
 }
 
 // SearchIterator returns an iterator for search results.
-func (db *DB) SearchIterator(patterns []*Pattern, opts *SearchOptions) (*SolutionIterator, error) {
-	// For now, we collect all results and iterate over them
-	// A more sophisticated implementation would stream results
-	solutions, err := db.Search(patterns, opts)
-	if err != nil {
-		return nil, err
+func (db *DB) SearchIterator(ctx context.Context, patterns []*Pattern, opts *SearchOptions) (*SolutionIterator, error) {
+	if opts == nil {
+		opts = &SearchOptions{}
 	}
 
-	return &SolutionIterator{
-		solutions: solutions,
-		index:     -1,
-	}, nil
+	var startSolution Solution
+	if opts.InitialSolution != nil {
+		startSolution = opts.InitialSolution.Clone()
+	} else {
+		startSolution = make(Solution)
+	}
+
+	si := &SolutionIterator{
+		ctx:       ctx,
+		db:        db,
+		patterns:  patterns,
+		opts:      opts,
+		iters:     make([]*TripleIterator, len(patterns)),
+		solutions: make([]Solution, len(patterns)+1),
+	}
+	si.solutions[0] = startSolution
+
+	return si, nil
 }
 
 // SolutionIterator iterates over search solutions.
 type SolutionIterator struct {
-	solutions []Solution
-	index     int
+	ctx       context.Context
+	db        *DB
+	patterns  []*Pattern
+	opts      *SearchOptions
+	iters     []*TripleIterator
+	solutions []Solution // solutions[i] is the solution before pattern[i]
+	current   Solution
+	err       error
+	count     int
+	skipped   int
+	closed    bool
 }
 
 // Next advances to the next solution.
 func (si *SolutionIterator) Next() bool {
-	si.index++
-	return si.index < len(si.solutions)
+	if si.closed || si.err != nil {
+		return false
+	}
+
+	if si.opts.Limit > 0 && si.count >= si.opts.Limit {
+		return false
+	}
+
+	for {
+		select {
+		case <-si.ctx.Done():
+			si.err = si.ctx.Err()
+			return false
+		default:
+		}
+
+		solution := si.advance()
+		if solution == nil {
+			si.Close()
+			return false
+		}
+
+		// Apply solution-level filter
+		if si.opts.Filter != nil && !si.opts.Filter(solution) {
+			continue
+		}
+
+		// Handle offset
+		if si.skipped < si.opts.Offset {
+			si.skipped++
+			continue
+		}
+
+		// Apply materialization if requested
+		if si.opts.Materialized != nil {
+			materialized := si.materialize(solution, si.opts.Materialized)
+			si.current = materialized
+		} else {
+			si.current = solution
+		}
+
+		si.count++
+		return true
+	}
+}
+
+func (si *SolutionIterator) advance() Solution {
+	level := -1
+	// Find the deepest active level
+	for i := len(si.patterns) - 1; i >= 0; i-- {
+		if si.iters[i] != nil {
+			level = i
+			break
+		}
+	}
+
+	// If no levels are active, start at level 0
+	if level == -1 {
+		if len(si.patterns) == 0 {
+			// Special case: no patterns, return the initial solution once
+			if si.solutions[0] != nil {
+				sol := si.solutions[0]
+				si.solutions[0] = nil
+				return sol
+			}
+			return nil
+		}
+		level = 0
+		updatedPattern := si.patterns[0].UpdateWithSolution(si.solutions[0])
+		iter, err := si.db.GetIterator(si.ctx, updatedPattern)
+		if err != nil {
+			si.err = err
+			return nil
+		}
+		si.iters[0] = iter
+	}
+
+	for level >= 0 {
+		if si.iters[level].Next() {
+			triple, err := si.iters[level].Triple()
+			if err != nil {
+				si.err = err
+				return nil
+			}
+
+			newSolution := si.patterns[level].BindTriple(si.solutions[level], triple)
+			if newSolution == nil {
+				continue
+			}
+
+			// Apply pattern-level filter if present
+			if si.patterns[level].Filter != nil && !si.patterns[level].Filter(triple) {
+				continue
+			}
+
+			if level == len(si.patterns)-1 {
+				// We found a full solution!
+				return newSolution
+			}
+
+			// Move to next level
+			level++
+			si.solutions[level] = newSolution
+			updatedPattern := si.patterns[level].UpdateWithSolution(si.solutions[level])
+			iter, err := si.db.GetIterator(si.ctx, updatedPattern)
+			if err != nil {
+				si.err = err
+				return nil
+			}
+			si.iters[level] = iter
+		} else {
+			// Backtrack
+			si.iters[level].Release()
+			si.iters[level] = nil
+			level--
+		}
+	}
+
+	return nil
+}
+
+func (si *SolutionIterator) materialize(solution Solution, pattern *Pattern) Solution {
+	tripleData := make(Solution)
+	fields := []string{"subject", "predicate", "object"}
+	for _, field := range fields {
+		if v := pattern.GetVariable(field); v != nil {
+			if val, ok := solution[v.Name]; ok {
+				tripleData[field] = val
+			}
+		} else if val := pattern.GetConcreteValue(field); val != nil {
+			tripleData[field] = val
+		}
+	}
+	return tripleData
 }
 
 // Solution returns the current solution.
 func (si *SolutionIterator) Solution() Solution {
-	if si.index < 0 || si.index >= len(si.solutions) {
-		return nil
-	}
-	return si.solutions[si.index]
+	return si.current
 }
 
 // Close releases iterator resources.
 func (si *SolutionIterator) Close() {
-	si.solutions = nil
+	if si.closed {
+		return
+	}
+	si.closed = true
+	for i, iter := range si.iters {
+		if iter != nil {
+			iter.Release()
+			si.iters[i] = nil
+		}
+	}
+}
+
+// Error returns any error encountered during iteration.
+func (si *SolutionIterator) Error() error {
+	return si.err
 }

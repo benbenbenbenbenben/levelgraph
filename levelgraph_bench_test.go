@@ -25,6 +25,7 @@
 package levelgraph
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -66,7 +67,7 @@ func BenchmarkPut(b *testing.B) {
 			"predicate",
 			fmt.Sprintf("object%d", i),
 		)
-		if err := db.Put(triple); err != nil {
+		if err := db.Put(context.Background(), triple); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -89,7 +90,7 @@ func BenchmarkPutBatch(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := db.Put(triples...); err != nil {
+		if err := db.Put(context.Background(), triples...); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -107,13 +108,13 @@ func BenchmarkGet(b *testing.B) {
 			"predicate",
 			fmt.Sprintf("object%d", i),
 		)
-		db.Put(triple)
+		db.Put(context.Background(), triple)
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		subject := fmt.Sprintf("subject%d", i%100)
-		_, err := db.Get(&Pattern{Subject: []byte(subject)})
+		_, err := db.Get(context.Background(), &Pattern{Subject: []byte(subject)})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -133,13 +134,13 @@ func BenchmarkGetByPredicate(b *testing.B) {
 			predicates[i%len(predicates)],
 			fmt.Sprintf("object%d", i),
 		)
-		db.Put(triple)
+		db.Put(context.Background(), triple)
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		pred := predicates[i%len(predicates)]
-		_, err := db.Get(&Pattern{Predicate: []byte(pred)})
+		_, err := db.Get(context.Background(), &Pattern{Predicate: []byte(pred)})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -159,13 +160,13 @@ func BenchmarkSearch(b *testing.B) {
 				"friend",
 				fmt.Sprintf("person%d", (i+j+1)%100),
 			)
-			db.Put(triple)
+			db.Put(context.Background(), triple)
 		}
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := db.Search([]*Pattern{
+		_, err := db.Search(context.Background(), []*Pattern{
 			{
 				Subject:   V("x"),
 				Predicate: []byte("friend"),
@@ -191,14 +192,14 @@ func BenchmarkSearchJoin(b *testing.B) {
 				"friend",
 				fmt.Sprintf("person%d", (i+j+1)%100),
 			)
-			db.Put(triple)
+			db.Put(context.Background(), triple)
 		}
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Find friends of friends of person0
-		_, err := db.Search([]*Pattern{
+		_, err := db.Search(context.Background(), []*Pattern{
 			{
 				Subject:   []byte("person0"),
 				Predicate: []byte("friend"),
@@ -229,13 +230,13 @@ func BenchmarkNavigator(b *testing.B) {
 				"friend",
 				fmt.Sprintf("person%d", (i+j+1)%100),
 			)
-			db.Put(triple)
+			db.Put(context.Background(), triple)
 		}
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := db.Nav("person0").
+		_, err := db.Nav(context.Background(), "person0").
 			ArchOut("friend").
 			ArchOut("friend").
 			Values()
@@ -258,12 +259,12 @@ func BenchmarkDel(b *testing.B) {
 			"predicate",
 			fmt.Sprintf("object%d", i),
 		)
-		db.Put(triples[i])
+		db.Put(context.Background(), triples[i])
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := db.Del(triples[i]); err != nil {
+		if err := db.Del(context.Background(), triples[i]); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -281,12 +282,12 @@ func BenchmarkIterator(b *testing.B) {
 			"predicate",
 			fmt.Sprintf("object%d", i),
 		)
-		db.Put(triple)
+		db.Put(context.Background(), triple)
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		iter, err := db.GetIterator(&Pattern{Subject: []byte("subject")})
+		iter, err := db.GetIterator(context.Background(), &Pattern{Subject: []byte("subject")})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -320,7 +321,7 @@ func BenchmarkJournalPut(b *testing.B) {
 			"predicate",
 			fmt.Sprintf("object%d", i),
 		)
-		if err := db.Put(triple); err != nil {
+		if err := db.Put(context.Background(), triple); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -343,7 +344,7 @@ func BenchmarkFacetSet(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := db.SetFacet(FacetSubject, []byte(fmt.Sprintf("subject%d", i)), []byte("key"), []byte("value"))
+		err := db.SetFacet(context.Background(), FacetSubject, []byte(fmt.Sprintf("subject%d", i)), []byte("key"), []byte("value"))
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -367,12 +368,12 @@ func BenchmarkFacetGet(b *testing.B) {
 
 	// Pre-set facets
 	for i := 0; i < 1000; i++ {
-		db.SetFacet(FacetSubject, []byte(fmt.Sprintf("subject%d", i)), []byte("key"), []byte("value"))
+		db.SetFacet(context.Background(), FacetSubject, []byte(fmt.Sprintf("subject%d", i)), []byte("key"), []byte("value"))
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := db.GetFacet(FacetSubject, []byte(fmt.Sprintf("subject%d", i%1000)), []byte("key"))
+		_, err := db.GetFacet(context.Background(), FacetSubject, []byte(fmt.Sprintf("subject%d", i%1000)), []byte("key"))
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -67,7 +67,7 @@ The DB struct properly uses read-write locks:
 
 ```go
 type DB struct {
-    ldb     *leveldb.DB
+    store   KVStore
     options *Options
     closed  bool
     mu      sync.RWMutex  // ← Proper concurrent access protection
@@ -80,9 +80,7 @@ Operations correctly acquire read locks for queries and write locks for mutation
 
 ```go
 // journal.go:38-45
-var journalCounter uint64
-
-// Used with atomic.AddUint64 for uniqueness
+// Moved to DB instance to avoid global state issues. (RESOLVED)
 ```
 
 Proper use of atomic operations for concurrent-safe key generation. Nice touch.
@@ -99,7 +97,7 @@ return nil, ErrClosed
 return nil, fmt.Errorf("DB.Get: %w", ErrClosed)
 ```
 
-This makes debugging production issues harder.
+(RESOLVED) Most errors now use proper wrapping.
 
 ### 5. **Missing: No godoc Examples**
 
@@ -132,9 +130,9 @@ Yet `variable.go` reimplements `bytesEqual`. Inconsistent use of stdlib.
 
 ### The Concerning
 
-1. **No input validation on paths** — `Open()` doesn't sanitize path input
+1. **No input validation on paths**: (RESOLVED) `Open()` now validates that a path is provided.
 2. **Unbounded result sets** — No default limit on Get/Search operations
-3. **Journal counter is global** — Package-level `journalCounter` could cause issues if multiple DBs open
+3. **Journal counter is global**: (RESOLVED) Moved to `DB` struct instance to support multiple databases safely.
 4. **No graceful shutdown** — No way to drain pending operations before close
 
 ### The Nitpicks

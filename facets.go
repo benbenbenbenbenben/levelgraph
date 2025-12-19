@@ -26,6 +26,7 @@ package levelgraph
 
 import (
 	"bytes"
+	"context"
 	"errors"
 
 	"github.com/syndtr/goleveldb/leveldb"
@@ -111,7 +112,7 @@ func genTripleFacetPrefix(triple *Triple) []byte {
 
 // SetFacet sets a facet on a component (subject, predicate, or object value).
 // The facet is a key-value pair attached to the component.
-func (db *DB) SetFacet(facetType FacetType, value []byte, key []byte, facetValue []byte) error {
+func (db *DB) SetFacet(ctx context.Context, facetType FacetType, value []byte, key []byte, facetValue []byte) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -119,16 +120,22 @@ func (db *DB) SetFacet(facetType FacetType, value []byte, key []byte, facetValue
 		return ErrClosed
 	}
 
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	if !db.options.FacetsEnabled {
 		return ErrFacetsDisabled
 	}
 
 	dbKey := genFacetKey(facetType, value, key)
-	return db.ldb.Put(dbKey, facetValue, nil)
+	return db.store.Put(dbKey, facetValue, nil)
 }
 
 // GetFacet retrieves a facet from a component.
-func (db *DB) GetFacet(facetType FacetType, value []byte, key []byte) ([]byte, error) {
+func (db *DB) GetFacet(ctx context.Context, facetType FacetType, value []byte, key []byte) ([]byte, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -136,12 +143,18 @@ func (db *DB) GetFacet(facetType FacetType, value []byte, key []byte) ([]byte, e
 		return nil, ErrClosed
 	}
 
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
 	if !db.options.FacetsEnabled {
 		return nil, ErrFacetsDisabled
 	}
 
 	dbKey := genFacetKey(facetType, value, key)
-	result, err := db.ldb.Get(dbKey, nil)
+	result, err := db.store.Get(dbKey, nil)
 	if err == leveldb.ErrNotFound {
 		return nil, nil
 	}
@@ -150,12 +163,18 @@ func (db *DB) GetFacet(facetType FacetType, value []byte, key []byte) ([]byte, e
 
 // GetFacets retrieves all facets from a component.
 // Returns a map of facet keys to values.
-func (db *DB) GetFacets(facetType FacetType, value []byte) (map[string][]byte, error) {
+func (db *DB) GetFacets(ctx context.Context, facetType FacetType, value []byte) (map[string][]byte, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
 		return nil, ErrClosed
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
 	}
 
 	if !db.options.FacetsEnabled {
@@ -165,7 +184,7 @@ func (db *DB) GetFacets(facetType FacetType, value []byte) (map[string][]byte, e
 	prefix := genFacetPrefix(facetType, value)
 	upperBound := append(prefix, 0xFF)
 
-	iter := db.ldb.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
+	iter := db.store.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
 	defer iter.Release()
 
 	result := make(map[string][]byte)
@@ -190,12 +209,18 @@ func (db *DB) GetFacets(facetType FacetType, value []byte) (map[string][]byte, e
 }
 
 // DelFacet deletes a facet from a component.
-func (db *DB) DelFacet(facetType FacetType, value []byte, key []byte) error {
+func (db *DB) DelFacet(ctx context.Context, facetType FacetType, value []byte, key []byte) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
 		return ErrClosed
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
 	}
 
 	if !db.options.FacetsEnabled {
@@ -203,11 +228,11 @@ func (db *DB) DelFacet(facetType FacetType, value []byte, key []byte) error {
 	}
 
 	dbKey := genFacetKey(facetType, value, key)
-	return db.ldb.Delete(dbKey, nil)
+	return db.store.Delete(dbKey, nil)
 }
 
 // SetTripleFacet sets a facet on an entire triple relationship.
-func (db *DB) SetTripleFacet(triple *Triple, key []byte, value []byte) error {
+func (db *DB) SetTripleFacet(ctx context.Context, triple *Triple, key []byte, value []byte) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -215,21 +240,33 @@ func (db *DB) SetTripleFacet(triple *Triple, key []byte, value []byte) error {
 		return ErrClosed
 	}
 
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	if !db.options.FacetsEnabled {
 		return ErrFacetsDisabled
 	}
 
 	dbKey := genTripleFacetKey(triple, key)
-	return db.ldb.Put(dbKey, value, nil)
+	return db.store.Put(dbKey, value, nil)
 }
 
 // GetTripleFacet retrieves a facet from a triple.
-func (db *DB) GetTripleFacet(triple *Triple, key []byte) ([]byte, error) {
+func (db *DB) GetTripleFacet(ctx context.Context, triple *Triple, key []byte) ([]byte, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
 		return nil, ErrClosed
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
 	}
 
 	if !db.options.FacetsEnabled {
@@ -237,7 +274,7 @@ func (db *DB) GetTripleFacet(triple *Triple, key []byte) ([]byte, error) {
 	}
 
 	dbKey := genTripleFacetKey(triple, key)
-	result, err := db.ldb.Get(dbKey, nil)
+	result, err := db.store.Get(dbKey, nil)
 	if err == leveldb.ErrNotFound {
 		return nil, nil
 	}
@@ -245,12 +282,18 @@ func (db *DB) GetTripleFacet(triple *Triple, key []byte) ([]byte, error) {
 }
 
 // GetTripleFacets retrieves all facets from a triple.
-func (db *DB) GetTripleFacets(triple *Triple) (map[string][]byte, error) {
+func (db *DB) GetTripleFacets(ctx context.Context, triple *Triple) (map[string][]byte, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
 		return nil, ErrClosed
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
 	}
 
 	if !db.options.FacetsEnabled {
@@ -260,7 +303,7 @@ func (db *DB) GetTripleFacets(triple *Triple) (map[string][]byte, error) {
 	prefix := genTripleFacetPrefix(triple)
 	upperBound := append(prefix, 0xFF)
 
-	iter := db.ldb.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
+	iter := db.store.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
 	defer iter.Release()
 
 	result := make(map[string][]byte)
@@ -284,12 +327,18 @@ func (db *DB) GetTripleFacets(triple *Triple) (map[string][]byte, error) {
 }
 
 // DelTripleFacet deletes a facet from a triple.
-func (db *DB) DelTripleFacet(triple *Triple, key []byte) error {
+func (db *DB) DelTripleFacet(ctx context.Context, triple *Triple, key []byte) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
 		return ErrClosed
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
 	}
 
 	if !db.options.FacetsEnabled {
@@ -297,16 +346,22 @@ func (db *DB) DelTripleFacet(triple *Triple, key []byte) error {
 	}
 
 	dbKey := genTripleFacetKey(triple, key)
-	return db.ldb.Delete(dbKey, nil)
+	return db.store.Delete(dbKey, nil)
 }
 
 // DelAllTripleFacets deletes all facets from a triple.
-func (db *DB) DelAllTripleFacets(triple *Triple) error {
+func (db *DB) DelAllTripleFacets(ctx context.Context, triple *Triple) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
 		return ErrClosed
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
 	}
 
 	if !db.options.FacetsEnabled {
@@ -316,7 +371,7 @@ func (db *DB) DelAllTripleFacets(triple *Triple) error {
 	prefix := genTripleFacetPrefix(triple)
 	upperBound := append(prefix, 0xFF)
 
-	iter := db.ldb.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
+	iter := db.store.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
 	defer iter.Release()
 
 	batch := new(leveldb.Batch)
@@ -330,7 +385,7 @@ func (db *DB) DelAllTripleFacets(triple *Triple) error {
 		return err
 	}
 
-	return db.ldb.Write(batch, nil)
+	return db.store.Write(batch, nil)
 }
 
 // FacetIterator iterates over facets on a component or triple.
@@ -340,12 +395,18 @@ type FacetIterator struct {
 }
 
 // GetFacetIterator returns an iterator over facets on a component.
-func (db *DB) GetFacetIterator(facetType FacetType, value []byte) (*FacetIterator, error) {
+func (db *DB) GetFacetIterator(ctx context.Context, facetType FacetType, value []byte) (*FacetIterator, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
 		return nil, ErrClosed
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
 	}
 
 	if !db.options.FacetsEnabled {
@@ -355,7 +416,7 @@ func (db *DB) GetFacetIterator(facetType FacetType, value []byte) (*FacetIterato
 	prefix := genFacetPrefix(facetType, value)
 	upperBound := append(prefix, 0xFF)
 
-	iter := db.ldb.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
+	iter := db.store.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
 	return &FacetIterator{
 		iter:      iter,
 		prefixLen: len(prefix),
@@ -363,12 +424,18 @@ func (db *DB) GetFacetIterator(facetType FacetType, value []byte) (*FacetIterato
 }
 
 // GetTripleFacetIterator returns an iterator over facets on a triple.
-func (db *DB) GetTripleFacetIterator(triple *Triple) (*FacetIterator, error) {
+func (db *DB) GetTripleFacetIterator(ctx context.Context, triple *Triple) (*FacetIterator, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
 		return nil, ErrClosed
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
 	}
 
 	if !db.options.FacetsEnabled {
@@ -378,7 +445,7 @@ func (db *DB) GetTripleFacetIterator(triple *Triple) (*FacetIterator, error) {
 	prefix := genTripleFacetPrefix(triple)
 	upperBound := append(prefix, 0xFF)
 
-	iter := db.ldb.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
+	iter := db.store.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
 	return &FacetIterator{
 		iter:      iter,
 		prefixLen: len(prefix),

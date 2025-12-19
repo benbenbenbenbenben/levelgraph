@@ -25,6 +25,7 @@
 package levelgraph_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -52,7 +53,7 @@ func Example() {
 	defer db.Close()
 
 	// Insert triples
-	err = db.Put(
+	err = db.Put(context.Background(), 
 		levelgraph.NewTripleFromStrings("alice", "knows", "bob"),
 		levelgraph.NewTripleFromStrings("bob", "knows", "charlie"),
 	)
@@ -62,7 +63,7 @@ func Example() {
 	}
 
 	// Query by subject
-	triples, err := db.Get(&levelgraph.Pattern{Subject: []byte("alice")})
+	triples, err := db.Get(context.Background(), &levelgraph.Pattern{Subject: []byte("alice")})
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
@@ -91,14 +92,14 @@ func Example_search() {
 	defer db.Close()
 
 	// Build a social graph
-	db.Put(
+	db.Put(context.Background(), 
 		levelgraph.NewTripleFromStrings("alice", "knows", "bob"),
 		levelgraph.NewTripleFromStrings("bob", "knows", "charlie"),
 		levelgraph.NewTripleFromStrings("alice", "knows", "dave"),
 	)
 
 	// Find everyone alice knows
-	results, err := db.Search([]*levelgraph.Pattern{
+	results, err := db.Search(context.Background(), []*levelgraph.Pattern{
 		{
 			Subject:   []byte("alice"),
 			Predicate: []byte("knows"),
@@ -131,13 +132,13 @@ func Example_navigator() {
 	defer db.Close()
 
 	// Build a graph
-	db.Put(
+	db.Put(context.Background(), 
 		levelgraph.NewTripleFromStrings("alice", "knows", "bob"),
 		levelgraph.NewTripleFromStrings("bob", "knows", "charlie"),
 	)
 
 	// Navigate: find friends of friends of alice
-	solutions, err := db.Nav("alice").
+	solutions, err := db.Nav(context.Background(), "alice").
 		ArchOut("knows").As("friend").
 		ArchOut("knows").As("fof").
 		Solutions()

@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -28,7 +29,7 @@ func main() {
 	fmt.Println("=== Basic Triple Operations ===")
 
 	// Add some simple triples
-	err = db.Put(
+	err = db.Put(context.Background(), 
 		levelgraph.NewTripleFromStrings("alice", "knows", "bob"),
 		levelgraph.NewTripleFromStrings("bob", "knows", "alice"),
 	)
@@ -39,7 +40,7 @@ func main() {
 	fmt.Println("Added: bob knows alice")
 
 	// Query by subject
-	results, err := db.Get(&levelgraph.Pattern{
+	results, err := db.Get(context.Background(), &levelgraph.Pattern{
 		Subject: []byte("alice"),
 	})
 	if err != nil {
@@ -55,7 +56,7 @@ func main() {
 
 	// Query the journal for recent operations
 	oneHourAgo := time.Now().Add(-time.Hour)
-	entries, err := db.GetJournalEntries(oneHourAgo)
+	entries, err := db.GetJournalEntries(context.Background(), oneHourAgo)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -74,24 +75,24 @@ func main() {
 
 	// Create a triple with facets (metadata)
 	triple := levelgraph.NewTripleFromStrings("alice", "knows", "charlie")
-	err = db.Put(triple)
+	err = db.Put(context.Background(), triple)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Add facets to the triple
-	err = db.SetTripleFacet(triple, []byte("since"), []byte("2023"))
+	err = db.SetTripleFacet(context.Background(), triple, []byte("since"), []byte("2023"))
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = db.SetTripleFacet(triple, []byte("trust"), []byte("high"))
+	err = db.SetTripleFacet(context.Background(), triple, []byte("trust"), []byte("high"))
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println("Added: alice knows charlie (with facets: since=2023, trust=high)")
 
 	// Retrieve facets
-	facets, err := db.GetTripleFacets(triple)
+	facets, err := db.GetTripleFacets(context.Background(), triple)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -103,14 +104,14 @@ func main() {
 	fmt.Println("\n=== Navigator API ===")
 
 	// Add more data for navigation
-	db.Put(
+	db.Put(context.Background(), 
 		levelgraph.NewTripleFromStrings("bob", "knows", "charlie"),
 		levelgraph.NewTripleFromStrings("charlie", "knows", "diana"),
 	)
 
 	// Use the Navigator API for graph traversal
 	// Find all people that alice knows, and who they know
-	solutions, err := db.Nav([]byte("alice")).
+	solutions, err := db.Nav(context.Background(), []byte("alice")).
 		ArchOut([]byte("knows")).As("friend").
 		ArchOut([]byte("knows")).As("friendOfFriend").
 		Solutions()
@@ -128,7 +129,7 @@ func main() {
 	// Search for all "knows" relationships using variables
 	x := levelgraph.V("x")
 	y := levelgraph.V("y")
-	searchResults, err := db.Search([]*levelgraph.Pattern{
+	searchResults, err := db.Search(context.Background(), []*levelgraph.Pattern{
 		{Subject: x, Predicate: []byte("knows"), Object: y},
 	}, nil)
 	if err != nil {

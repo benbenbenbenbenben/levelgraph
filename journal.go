@@ -25,6 +25,7 @@
 package levelgraph
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"sync/atomic"
@@ -38,9 +39,6 @@ import (
 var (
 	// journalPrefix is the prefix for all journal entries
 	journalPrefix = []byte("journal::")
-
-	// journalCounter is used to ensure unique keys even for entries at the same timestamp
-	journalCounter uint64
 )
 
 // JournalEntry represents a recorded operation in the journal.
@@ -56,10 +54,10 @@ type JournalEntry struct {
 // genJournalKey generates a unique key for a journal entry.
 // Format: journal::<timestamp_ns>::<counter>
 // Using nanosecond timestamp + counter ensures uniqueness and ordering.
-func genJournalKey(ts time.Time) []byte {
+func (db *DB) genJournalKey(ts time.Time) []byte {
 	// Use nanoseconds since Unix epoch for ordering
 	nsec := ts.UnixNano()
-	counter := atomic.AddUint64(&journalCounter, 1)
+	counter := atomic.AddUint64(&db.journalCounter, 1)
 
 	// Create key: prefix + 8 bytes timestamp + 8 bytes counter
 	key := make([]byte, len(journalPrefix)+16)
@@ -88,7 +86,7 @@ func (db *DB) recordJournalEntry(batch *leveldb.Batch, op string, triple *Triple
 		return err
 	}
 
-	key := genJournalKey(ts)
+	key := db.genJournalKey(ts)
 	batch.Put(key, value)
 	return nil
 }
@@ -102,12 +100,18 @@ type JournalIterator struct {
 
 // GetJournalIterator returns an iterator over all journal entries.
 // If before is non-zero, only entries before that time are returned.
-func (db *DB) GetJournalIterator(before time.Time) (*JournalIterator, error) {
+func (db *DB) GetJournalIterator(ctx context.Context, before time.Time) (*JournalIterator, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
 		return nil, ErrClosed
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
 	}
 
 	var rng *util.Range
@@ -127,7 +131,7 @@ func (db *DB) GetJournalIterator(before time.Time) (*JournalIterator, error) {
 		rng = &util.Range{Start: journalPrefix, Limit: upperKey}
 	}
 
-	iter := db.ldb.NewIterator(rng, nil)
+	iter := db.store.NewIterator(rng, nil)
 	return &JournalIterator{
 		db:     db,
 		iter:   iter,
@@ -166,8 +170,8 @@ func (ji *JournalIterator) Error() error {
 }
 
 // GetJournalEntries returns all journal entries, optionally filtered by time.
-func (db *DB) GetJournalEntries(before time.Time) ([]*JournalEntry, error) {
-	iter, err := db.GetJournalIterator(before)
+func (db *DB) GetJournalEntries(ctx context.Context, before time.Time) ([]*JournalEntry, error) {
+	iter, err := db.GetJournalIterator(ctx, before)
 	if err != nil {
 		return nil, err
 	}
@@ -190,12 +194,18 @@ func (db *DB) GetJournalEntries(before time.Time) ([]*JournalEntry, error) {
 }
 
 // Trim removes all journal entries before the given time.
-func (db *DB) Trim(before time.Time) (int, error) {
+func (db *DB) Trim(ctx context.Context, before time.Time) (int, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	if db.closed {
 		return 0, ErrClosed
+	}
+
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
 	}
 
 	if !db.options.JournalEnabled {
@@ -207,7 +217,7 @@ func (db *DB) Trim(before time.Time) (int, error) {
 	copy(upperKey, journalPrefix)
 	binary.BigEndian.PutUint64(upperKey[len(journalPrefix):], uint64(before.UnixNano()))
 
-	iter := db.ldb.NewIterator(&util.Range{
+	iter := db.store.NewIterator(&util.Range{
 		Start: journalPrefix,
 		Limit: upperKey,
 	}, nil)
@@ -226,7 +236,7 @@ func (db *DB) Trim(before time.Time) (int, error) {
 	}
 
 	if count > 0 {
-		if err := db.ldb.Write(batch, nil); err != nil {
+		if err := db.store.Write(batch, nil); err != nil {
 			return 0, err
 		}
 	}
@@ -236,12 +246,18 @@ func (db *DB) Trim(before time.Time) (int, error) {
 
 // TrimAndExport removes journal entries before the given time and exports them to another database.
 // This is useful for archiving old journal entries while keeping the main database lean.
-func (db *DB) TrimAndExport(before time.Time, targetDB *DB) (int, error) {
+func (db *DB) TrimAndExport(ctx context.Context, before time.Time, targetDB *DB) (int, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	if db.closed {
 		return 0, ErrClosed
+	}
+
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
 	}
 
 	if !db.options.JournalEnabled {
@@ -253,7 +269,7 @@ func (db *DB) TrimAndExport(before time.Time, targetDB *DB) (int, error) {
 	copy(upperKey, journalPrefix)
 	binary.BigEndian.PutUint64(upperKey[len(journalPrefix):], uint64(before.UnixNano()))
 
-	iter := db.ldb.NewIterator(&util.Range{
+	iter := db.store.NewIterator(&util.Range{
 		Start: journalPrefix,
 		Limit: upperKey,
 	}, nil)
@@ -284,10 +300,10 @@ func (db *DB) TrimAndExport(before time.Time, targetDB *DB) (int, error) {
 
 	if count > 0 {
 		// First write to target, then delete from source
-		if err := targetDB.ldb.Write(exportBatch, nil); err != nil {
+		if err := targetDB.store.Write(exportBatch, nil); err != nil {
 			return 0, err
 		}
-		if err := db.ldb.Write(deleteBatch, nil); err != nil {
+		if err := db.store.Write(deleteBatch, nil); err != nil {
 			return 0, err
 		}
 	}
@@ -298,12 +314,18 @@ func (db *DB) TrimAndExport(before time.Time, targetDB *DB) (int, error) {
 // ReplayJournal replays all journal entries from a given time onwards.
 // If after is zero, replays all entries from the beginning.
 // This can be used to restore the database state or replay operations.
-func (db *DB) ReplayJournal(after time.Time, targetDB *DB) (int, error) {
+func (db *DB) ReplayJournal(ctx context.Context, after time.Time, targetDB *DB) (int, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
 		return 0, ErrClosed
+	}
+
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
 	}
 
 	var startKey []byte
@@ -324,7 +346,7 @@ func (db *DB) ReplayJournal(after time.Time, targetDB *DB) (int, error) {
 		endKey[i] = 0xFF
 	}
 
-	iter := db.ldb.NewIterator(&util.Range{
+	iter := db.store.NewIterator(&util.Range{
 		Start: startKey,
 		Limit: endKey,
 	}, nil)
@@ -332,6 +354,12 @@ func (db *DB) ReplayJournal(after time.Time, targetDB *DB) (int, error) {
 
 	count := 0
 	for iter.Next() {
+		select {
+		case <-ctx.Done():
+			return count, ctx.Err()
+		default:
+		}
+
 		var entry JournalEntry
 		if err := json.Unmarshal(iter.Value(), &entry); err != nil {
 			return count, err
@@ -339,11 +367,11 @@ func (db *DB) ReplayJournal(after time.Time, targetDB *DB) (int, error) {
 
 		switch entry.Operation {
 		case "put":
-			if err := targetDB.Put(entry.Triple); err != nil {
+			if err := targetDB.Put(ctx, entry.Triple); err != nil {
 				return count, err
 			}
 		case "del":
-			if err := targetDB.Del(entry.Triple); err != nil {
+			if err := targetDB.Del(ctx, entry.Triple); err != nil {
 				return count, err
 			}
 		}
@@ -358,12 +386,18 @@ func (db *DB) ReplayJournal(after time.Time, targetDB *DB) (int, error) {
 }
 
 // JournalCount returns the number of journal entries, optionally filtered by time.
-func (db *DB) JournalCount(before time.Time) (int, error) {
+func (db *DB) JournalCount(ctx context.Context, before time.Time) (int, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
 		return 0, ErrClosed
+	}
+
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
 	}
 
 	var rng *util.Range
@@ -383,7 +417,7 @@ func (db *DB) JournalCount(before time.Time) (int, error) {
 		rng = &util.Range{Start: journalPrefix, Limit: upperKey}
 	}
 
-	iter := db.ldb.NewIterator(rng, nil)
+	iter := db.store.NewIterator(rng, nil)
 	defer iter.Release()
 
 	count := 0

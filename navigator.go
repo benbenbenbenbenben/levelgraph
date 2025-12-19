@@ -7,7 +7,6 @@
 // restriction, including without limitation the rights to use,
 // copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the
-// Software is furnished to do so, subject to the following
 // conditions:
 //
 // The above copyright notice and this permission notice shall be
@@ -25,6 +24,7 @@
 package levelgraph
 
 import (
+	"context"
 	"fmt"
 )
 
@@ -33,11 +33,12 @@ import (
 //
 // Example usage:
 //
-//	nav := db.Nav([]byte("alice"))
+//	nav := db.Nav(ctx, []byte("alice"))
 //	solutions, err := nav.ArchOut("knows").ArchOut("likes").Solutions()
 //
 // This finds all things liked by people that alice knows.
 type Navigator struct {
+	ctx             context.Context
 	db              *DB
 	conditions      []*Pattern
 	initialSolution Solution
@@ -47,8 +48,9 @@ type Navigator struct {
 
 // Nav creates a new Navigator starting from the given vertex.
 // If start is nil, a new variable is created as the starting point.
-func (db *DB) Nav(start interface{}) *Navigator {
+func (db *DB) Nav(ctx context.Context, start interface{}) *Navigator {
 	nav := &Navigator{
+		ctx:             ctx,
 		db:              db,
 		conditions:      make([]*Pattern, 0),
 		initialSolution: make(Solution),
@@ -151,7 +153,7 @@ func (nav *Navigator) Solutions() ([]Solution, error) {
 
 	// Pass initial solution to search - patterns will be updated with bound values,
 	// and the initial solution will be included in results
-	return nav.db.Search(nav.conditions, &SearchOptions{
+	return nav.db.Search(nav.ctx, nav.conditions, &SearchOptions{
 		InitialSolution: nav.initialSolution,
 	})
 }
@@ -200,7 +202,7 @@ func (nav *Navigator) Triples(pattern *Pattern) ([]*Triple, error) {
 		return nil, nil
 	}
 
-	solutions, err := nav.db.Search(nav.conditions, &SearchOptions{
+	solutions, err := nav.db.Search(nav.ctx, nav.conditions, &SearchOptions{
 		InitialSolution: nav.initialSolution,
 		Materialized:    pattern,
 	})
@@ -265,7 +267,7 @@ func (nav *Navigator) First() (Solution, error) {
 		return nav.initialSolution, nil
 	}
 
-	solutions, err := nav.db.Search(nav.conditions, &SearchOptions{
+	solutions, err := nav.db.Search(nav.ctx, nav.conditions, &SearchOptions{
 		InitialSolution: nav.initialSolution,
 		Limit:           1,
 	})
@@ -289,6 +291,7 @@ func (nav *Navigator) Exists() (bool, error) {
 // Clone creates a copy of this navigator that can be modified independently.
 func (nav *Navigator) Clone() *Navigator {
 	newNav := &Navigator{
+		ctx:             nav.ctx,
 		db:              nav.db,
 		conditions:      make([]*Pattern, len(nav.conditions)),
 		initialSolution: make(Solution),

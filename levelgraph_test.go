@@ -25,6 +25,8 @@
 package levelgraph
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -306,14 +308,14 @@ func TestDB_PutAndGet(t *testing.T) {
 
 	t.Run("Put single triple", func(t *testing.T) {
 		triple := NewTripleFromStrings("a", "b", "c")
-		err := db.Put(triple)
+		err := db.Put(context.Background(), triple)
 		if err != nil {
 			t.Fatalf("Put failed: %v", err)
 		}
 	})
 
 	t.Run("Get by subject", func(t *testing.T) {
-		results, err := db.Get(&Pattern{Subject: []byte("a")})
+		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -326,7 +328,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	})
 
 	t.Run("Get by predicate", func(t *testing.T) {
-		results, err := db.Get(&Pattern{Predicate: []byte("b")})
+		results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -336,7 +338,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	})
 
 	t.Run("Get by object", func(t *testing.T) {
-		results, err := db.Get(&Pattern{Object: []byte("c")})
+		results, err := db.Get(context.Background(), &Pattern{Object: []byte("c")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -346,7 +348,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	})
 
 	t.Run("Get by subject and predicate", func(t *testing.T) {
-		results, err := db.Get(&Pattern{Subject: []byte("a"), Predicate: []byte("b")})
+		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a"), Predicate: []byte("b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -356,7 +358,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	})
 
 	t.Run("Get with no match", func(t *testing.T) {
-		results, err := db.Get(&Pattern{Subject: []byte("notfound")})
+		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("notfound")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -372,25 +374,25 @@ func TestDB_Del(t *testing.T) {
 	defer cleanup()
 
 	triple := NewTripleFromStrings("a", "b", "c")
-	err := db.Put(triple)
+	err := db.Put(context.Background(), triple)
 	if err != nil {
 		t.Fatalf("Put failed: %v", err)
 	}
 
 	// Verify it exists
-	results, _ := db.Get(&Pattern{Subject: []byte("a")})
+	results, _ := db.Get(context.Background(), &Pattern{Subject: []byte("a")})
 	if len(results) != 1 {
 		t.Fatal("triple should exist before delete")
 	}
 
 	// Delete it
-	err = db.Del(triple)
+	err = db.Del(context.Background(), triple)
 	if err != nil {
 		t.Fatalf("Del failed: %v", err)
 	}
 
 	// Verify it's gone
-	results, _ = db.Get(&Pattern{Subject: []byte("a")})
+	results, _ = db.Get(context.Background(), &Pattern{Subject: []byte("a")})
 	if len(results) != 0 {
 		t.Fatal("triple should not exist after delete")
 	}
@@ -404,13 +406,13 @@ func TestDB_MultipleTriples(t *testing.T) {
 	t1 := NewTripleFromStrings("a1", "b", "c")
 	t2 := NewTripleFromStrings("a2", "b", "d")
 
-	err := db.Put(t1, t2)
+	err := db.Put(context.Background(), t1, t2)
 	if err != nil {
 		t.Fatalf("Put failed: %v", err)
 	}
 
 	t.Run("Get by shared predicate", func(t *testing.T) {
-		results, err := db.Get(&Pattern{Predicate: []byte("b")})
+		results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -420,7 +422,7 @@ func TestDB_MultipleTriples(t *testing.T) {
 	})
 
 	t.Run("Get by specific subject", func(t *testing.T) {
-		results, err := db.Get(&Pattern{Subject: []byte("a1")})
+		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a1")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -437,9 +439,9 @@ func TestDB_Limit(t *testing.T) {
 
 	t1 := NewTripleFromStrings("a1", "b", "c")
 	t2 := NewTripleFromStrings("a2", "b", "d")
-	db.Put(t1, t2)
+	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(&Pattern{Predicate: []byte("b"), Limit: 1})
+	results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("b"), Limit: 1})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -455,9 +457,9 @@ func TestDB_Offset(t *testing.T) {
 
 	t1 := NewTripleFromStrings("a1", "b", "c")
 	t2 := NewTripleFromStrings("a2", "b", "d")
-	db.Put(t1, t2)
+	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(&Pattern{Predicate: []byte("b"), Offset: 1})
+	results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("b"), Offset: 1})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -473,13 +475,13 @@ func TestDB_Filter(t *testing.T) {
 
 	t1 := NewTripleFromStrings("a", "b", "c")
 	t2 := NewTripleFromStrings("a", "b", "d")
-	db.Put(t1, t2)
+	db.Put(context.Background(), t1, t2)
 
 	filter := func(triple *Triple) bool {
 		return string(triple.Object) == "d"
 	}
 
-	results, err := db.Get(&Pattern{Subject: []byte("a"), Filter: filter})
+	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a"), Filter: filter})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -498,12 +500,12 @@ func TestDB_SpecialCharacters(t *testing.T) {
 
 	t.Run("String with ::", func(t *testing.T) {
 		triple := NewTripleFromStrings("a::b", "predicate", "object")
-		err := db.Put(triple)
+		err := db.Put(context.Background(), triple)
 		if err != nil {
 			t.Fatalf("Put failed: %v", err)
 		}
 
-		results, err := db.Get(&Pattern{Subject: []byte("a::b")})
+		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a::b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -517,12 +519,12 @@ func TestDB_SpecialCharacters(t *testing.T) {
 
 	t.Run("String with backslash", func(t *testing.T) {
 		triple := NewTripleFromStrings("a\\b", "predicate", "object")
-		err := db.Put(triple)
+		err := db.Put(context.Background(), triple)
 		if err != nil {
 			t.Fatalf("Put failed: %v", err)
 		}
 
-		results, err := db.Get(&Pattern{Subject: []byte("a\\b")})
+		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a\\b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -591,7 +593,7 @@ func setupFOAFData(db *DB) error {
 		NewTripleFromStrings("lucio", "age", "15"),
 		NewTripleFromStrings("davide", "age", "70"),
 	}
-	return db.Put(triples...)
+	return db.Put(context.Background(), triples...)
 }
 
 func TestSearch_SinglePattern(t *testing.T) {
@@ -604,7 +606,7 @@ func TestSearch_SinglePattern(t *testing.T) {
 	}
 
 	t.Run("search with one result", func(t *testing.T) {
-		results, err := db.Search([]*Pattern{
+		results, err := db.Search(context.Background(), []*Pattern{
 			{
 				Subject:   V("x"),
 				Predicate: []byte("friend"),
@@ -623,7 +625,7 @@ func TestSearch_SinglePattern(t *testing.T) {
 	})
 
 	t.Run("search with multiple results", func(t *testing.T) {
-		results, err := db.Search([]*Pattern{
+		results, err := db.Search(context.Background(), []*Pattern{
 			{
 				Subject:   V("x"),
 				Predicate: []byte("friend"),
@@ -650,7 +652,7 @@ func TestSearch_Join(t *testing.T) {
 
 	t.Run("two pattern join", func(t *testing.T) {
 		// Find people who are friends with both marco and matteo
-		results, err := db.Search([]*Pattern{
+		results, err := db.Search(context.Background(), []*Pattern{
 			{
 				Subject:   V("x"),
 				Predicate: []byte("friend"),
@@ -681,7 +683,7 @@ func TestSearch_Join(t *testing.T) {
 
 	t.Run("friend of friend", func(t *testing.T) {
 		// Find friends of friends of matteo who are friends with davide
-		results, err := db.Search([]*Pattern{
+		results, err := db.Search(context.Background(), []*Pattern{
 			{
 				Subject:   []byte("matteo"),
 				Predicate: []byte("friend"),
@@ -714,7 +716,7 @@ func TestSearch_Join(t *testing.T) {
 
 	t.Run("mutual friends", func(t *testing.T) {
 		// Find pairs where both are friends with each other
-		results, err := db.Search([]*Pattern{
+		results, err := db.Search(context.Background(), []*Pattern{
 			{
 				Subject:   V("x"),
 				Predicate: []byte("friend"),
@@ -737,7 +739,7 @@ func TestSearch_Join(t *testing.T) {
 
 	t.Run("common friends", func(t *testing.T) {
 		// Find common friends of lucio and daniele
-		results, err := db.Search([]*Pattern{
+		results, err := db.Search(context.Background(), []*Pattern{
 			{
 				Subject:   []byte("lucio"),
 				Predicate: []byte("friend"),
@@ -768,7 +770,7 @@ func TestSearch_Limit(t *testing.T) {
 		t.Fatalf("failed to setup data: %v", err)
 	}
 
-	results, err := db.Search([]*Pattern{
+	results, err := db.Search(context.Background(), []*Pattern{
 		{
 			Subject:   V("x"),
 			Predicate: []byte("friend"),
@@ -797,7 +799,7 @@ func TestSearch_Offset(t *testing.T) {
 		t.Fatalf("failed to setup data: %v", err)
 	}
 
-	results, err := db.Search([]*Pattern{
+	results, err := db.Search(context.Background(), []*Pattern{
 		{
 			Subject:   V("x"),
 			Predicate: []byte("friend"),
@@ -826,7 +828,7 @@ func TestSearch_SolutionFilter(t *testing.T) {
 	}
 
 	// Find friends of matteo, but filter out daniele
-	results, err := db.Search([]*Pattern{
+	results, err := db.Search(context.Background(), []*Pattern{
 		{
 			Subject:   []byte("matteo"),
 			Predicate: []byte("friend"),
@@ -861,7 +863,7 @@ func TestSearch_Materialized(t *testing.T) {
 		t.Fatalf("failed to setup data: %v", err)
 	}
 
-	results, err := db.Search([]*Pattern{
+	results, err := db.Search(context.Background(), []*Pattern{
 		{
 			Subject:   V("x"),
 			Predicate: []byte("friend"),
@@ -905,7 +907,7 @@ func TestSearch_PatternFilter(t *testing.T) {
 	}
 
 	// Find friends of daniele but filter at pattern level
-	results, err := db.Search([]*Pattern{
+	results, err := db.Search(context.Background(), []*Pattern{
 		{
 			Subject:   V("x"),
 			Predicate: []byte("friend"),
@@ -927,7 +929,7 @@ func TestSearch_EmptyPatterns(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	results, err := db.Search([]*Pattern{}, nil)
+	results, err := db.Search(context.Background(), []*Pattern{}, nil)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
 	}
@@ -944,7 +946,7 @@ func TestSearchIterator(t *testing.T) {
 		t.Fatalf("failed to setup data: %v", err)
 	}
 
-	iter, err := db.SearchIterator([]*Pattern{
+	iter, err := db.SearchIterator(context.Background(), []*Pattern{
 		{
 			Subject:   V("x"),
 			Predicate: []byte("friend"),
@@ -980,7 +982,7 @@ func TestNavigator_SingleVertex(t *testing.T) {
 		t.Fatalf("failed to setup data: %v", err)
 	}
 
-	values, err := db.Nav("matteo").Values()
+	values, err := db.Nav(context.Background(), "matteo").Values()
 	if err != nil {
 		t.Fatalf("Navigator failed: %v", err)
 	}
@@ -1000,7 +1002,7 @@ func TestNavigator_ArchOut(t *testing.T) {
 		t.Fatalf("failed to setup data: %v", err)
 	}
 
-	values, err := db.Nav("matteo").ArchOut("friend").Values()
+	values, err := db.Nav(context.Background(), "matteo").ArchOut("friend").Values()
 	if err != nil {
 		t.Fatalf("Navigator failed: %v", err)
 	}
@@ -1020,7 +1022,7 @@ func TestNavigator_ArchIn(t *testing.T) {
 		t.Fatalf("failed to setup data: %v", err)
 	}
 
-	values, err := db.Nav("davide").ArchIn("friend").Values()
+	values, err := db.Nav(context.Background(), "davide").ArchIn("friend").Values()
 	if err != nil {
 		t.Fatalf("Navigator failed: %v", err)
 	}
@@ -1041,7 +1043,7 @@ func TestNavigator_MultipleArchs(t *testing.T) {
 	}
 
 	// Follow path: davide <- friend <- friend -> friend
-	values, err := db.Nav("davide").
+	values, err := db.Nav(context.Background(), "davide").
 		ArchIn("friend").
 		ArchIn("friend").
 		ArchOut("friend").
@@ -1073,7 +1075,7 @@ func TestNavigator_As(t *testing.T) {
 
 	// marco <- friend as 'a' -> friend -> friend as 'a'
 	// This should find cases where the same person appears at both positions
-	values, err := db.Nav("marco").
+	values, err := db.Nav(context.Background(), "marco").
 		ArchIn("friend").
 		As("a").
 		ArchOut("friend").
@@ -1100,7 +1102,7 @@ func TestNavigator_Bind(t *testing.T) {
 	}
 
 	// matteo <- friend.bind('lucio') -> friend.bind('marco')
-	values, err := db.Nav("matteo").
+	values, err := db.Nav(context.Background(), "matteo").
 		ArchIn("friend").
 		Bind("lucio").
 		ArchOut("friend").
@@ -1126,7 +1128,7 @@ func TestNavigator_StartFromVariable(t *testing.T) {
 	}
 
 	// Start from variable -> friend.bind('matteo') -> friend
-	values, err := db.Nav(nil).
+	values, err := db.Nav(context.Background(), nil).
 		ArchOut("friend").
 		Bind("matteo").
 		ArchOut("friend").
@@ -1150,7 +1152,7 @@ func TestNavigator_Solutions(t *testing.T) {
 		t.Fatalf("failed to setup data: %v", err)
 	}
 
-	solutions, err := db.Nav("daniele").
+	solutions, err := db.Nav(context.Background(), "daniele").
 		ArchOut("friend").
 		As("a").
 		Solutions()
@@ -1182,7 +1184,7 @@ func TestNavigator_NoConditions(t *testing.T) {
 	}
 
 	// No conditions should return initial solution (empty)
-	solutions, err := db.Nav("daniele").Solutions()
+	solutions, err := db.Nav(context.Background(), "daniele").Solutions()
 	if err != nil {
 		t.Fatalf("Navigator failed: %v", err)
 	}
@@ -1200,7 +1202,7 @@ func TestNavigator_Go(t *testing.T) {
 	}
 
 	// marco <- friend as 'a', go to matteo -> friend as 'b'
-	solutions, err := db.Nav("marco").
+	solutions, err := db.Nav(context.Background(), "marco").
 		ArchIn("friend").
 		As("a").
 		Go("matteo").
@@ -1231,7 +1233,7 @@ func TestNavigator_GoToVariable(t *testing.T) {
 	}
 
 	// marco, go to var as 'a' -> friend as 'b'.bind('matteo')
-	solutions, err := db.Nav("marco").
+	solutions, err := db.Nav(context.Background(), "marco").
 		Go(nil).
 		As("a").
 		ArchOut("friend").
@@ -1261,7 +1263,7 @@ func TestNavigator_Exists(t *testing.T) {
 		t.Fatalf("failed to setup data: %v", err)
 	}
 
-	exists, err := db.Nav("matteo").ArchOut("friend").Exists()
+	exists, err := db.Nav(context.Background(), "matteo").ArchOut("friend").Exists()
 	if err != nil {
 		t.Fatalf("Navigator failed: %v", err)
 	}
@@ -1269,7 +1271,7 @@ func TestNavigator_Exists(t *testing.T) {
 		t.Error("expected to find friends of matteo")
 	}
 
-	exists, err = db.Nav("nobody").ArchOut("friend").Exists()
+	exists, err = db.Nav(context.Background(), "nobody").ArchOut("friend").Exists()
 	if err != nil {
 		t.Fatalf("Navigator failed: %v", err)
 	}
@@ -1286,7 +1288,7 @@ func TestNavigator_Count(t *testing.T) {
 		t.Fatalf("failed to setup data: %v", err)
 	}
 
-	count, err := db.Nav("daniele").ArchOut("friend").Count()
+	count, err := db.Nav(context.Background(), "daniele").ArchOut("friend").Count()
 	if err != nil {
 		t.Fatalf("Navigator failed: %v", err)
 	}
@@ -1303,7 +1305,7 @@ func TestNavigator_Clone(t *testing.T) {
 		t.Fatalf("failed to setup data: %v", err)
 	}
 
-	nav1 := db.Nav("matteo").ArchOut("friend")
+	nav1 := db.Nav(context.Background(), "matteo").ArchOut("friend")
 	nav2 := nav1.Clone().ArchOut("friend")
 
 	// nav1 should have 1 condition, nav2 should have 2
@@ -1349,12 +1351,12 @@ func TestJournal_RecordsOperations(t *testing.T) {
 
 	// Put a triple
 	t1 := NewTripleFromStrings("a", "b", "c")
-	if err := db.Put(t1); err != nil {
+	if err := db.Put(context.Background(), t1); err != nil {
 		t.Fatalf("Put failed: %v", err)
 	}
 
 	// Check journal has an entry
-	count, err := db.JournalCount(time.Time{})
+	count, err := db.JournalCount(context.Background(), time.Time{})
 	if err != nil {
 		t.Fatalf("JournalCount failed: %v", err)
 	}
@@ -1363,7 +1365,7 @@ func TestJournal_RecordsOperations(t *testing.T) {
 	}
 
 	// Get the entry
-	entries, err := db.GetJournalEntries(time.Time{})
+	entries, err := db.GetJournalEntries(context.Background(), time.Time{})
 	if err != nil {
 		t.Fatalf("GetJournalEntries failed: %v", err)
 	}
@@ -1378,16 +1380,16 @@ func TestJournal_RecordsOperations(t *testing.T) {
 	}
 
 	// Delete the triple
-	if err := db.Del(t1); err != nil {
+	if err := db.Del(context.Background(), t1); err != nil {
 		t.Fatalf("Del failed: %v", err)
 	}
 
-	count, _ = db.JournalCount(time.Time{})
+	count, _ = db.JournalCount(context.Background(), time.Time{})
 	if count != 2 {
 		t.Errorf("expected 2 journal entries, got %d", count)
 	}
 
-	entries, _ = db.GetJournalEntries(time.Time{})
+	entries, _ = db.GetJournalEntries(context.Background(), time.Time{})
 	if entries[1].Operation != "del" {
 		t.Errorf("expected op 'del', got '%s'", entries[1].Operation)
 	}
@@ -1400,23 +1402,23 @@ func TestJournal_Trim(t *testing.T) {
 	// Put some triples
 	t1 := NewTripleFromStrings("a", "b", "c")
 	t2 := NewTripleFromStrings("d", "e", "f")
-	db.Put(t1)
+	db.Put(context.Background(), t1)
 
 	// Wait a tiny bit to ensure different timestamps
 	time.Sleep(10 * time.Millisecond)
 	trimTime := time.Now()
 	time.Sleep(10 * time.Millisecond)
 
-	db.Put(t2)
+	db.Put(context.Background(), t2)
 
 	// Should have 2 entries
-	count, _ := db.JournalCount(time.Time{})
+	count, _ := db.JournalCount(context.Background(), time.Time{})
 	if count != 2 {
 		t.Errorf("expected 2 journal entries before trim, got %d", count)
 	}
 
 	// Trim entries before trimTime
-	trimmed, err := db.Trim(trimTime)
+	trimmed, err := db.Trim(context.Background(), trimTime)
 	if err != nil {
 		t.Fatalf("Trim failed: %v", err)
 	}
@@ -1425,7 +1427,7 @@ func TestJournal_Trim(t *testing.T) {
 	}
 
 	// Should have 1 entry remaining
-	count, _ = db.JournalCount(time.Time{})
+	count, _ = db.JournalCount(context.Background(), time.Time{})
 	if count != 1 {
 		t.Errorf("expected 1 journal entry after trim, got %d", count)
 	}
@@ -1449,16 +1451,16 @@ func TestJournal_TrimAndExport(t *testing.T) {
 	// Put some triples
 	t1 := NewTripleFromStrings("a", "b", "c")
 	t2 := NewTripleFromStrings("d", "e", "f")
-	db.Put(t1)
+	db.Put(context.Background(), t1)
 
 	time.Sleep(10 * time.Millisecond)
 	trimTime := time.Now()
 	time.Sleep(10 * time.Millisecond)
 
-	db.Put(t2)
+	db.Put(context.Background(), t2)
 
 	// Export old entries
-	exported, err := db.TrimAndExport(trimTime, exportDB)
+	exported, err := db.TrimAndExport(context.Background(), trimTime, exportDB)
 	if err != nil {
 		t.Fatalf("TrimAndExport failed: %v", err)
 	}
@@ -1467,13 +1469,13 @@ func TestJournal_TrimAndExport(t *testing.T) {
 	}
 
 	// Main DB should have 1 entry
-	mainCount, _ := db.JournalCount(time.Time{})
+	mainCount, _ := db.JournalCount(context.Background(), time.Time{})
 	if mainCount != 1 {
 		t.Errorf("expected 1 entry in main db, got %d", mainCount)
 	}
 
 	// Export DB should have 1 entry
-	exportCount, _ := exportDB.JournalCount(time.Time{})
+	exportCount, _ := exportDB.JournalCount(context.Background(), time.Time{})
 	if exportCount != 1 {
 		t.Errorf("expected 1 entry in export db, got %d", exportCount)
 	}
@@ -1497,12 +1499,12 @@ func TestJournal_Replay(t *testing.T) {
 	// Put some triples
 	t1 := NewTripleFromStrings("a", "b", "c")
 	t2 := NewTripleFromStrings("d", "e", "f")
-	db.Put(t1)
-	db.Put(t2)
-	db.Del(t1)
+	db.Put(context.Background(), t1)
+	db.Put(context.Background(), t2)
+	db.Del(context.Background(), t1)
 
 	// Replay to target
-	replayed, err := db.ReplayJournal(time.Time{}, replayDB)
+	replayed, err := db.ReplayJournal(context.Background(), time.Time{}, replayDB)
 	if err != nil {
 		t.Fatalf("ReplayJournal failed: %v", err)
 	}
@@ -1511,12 +1513,12 @@ func TestJournal_Replay(t *testing.T) {
 	}
 
 	// Check replay result - should only have t2
-	results1, _ := replayDB.Get(&Pattern{Subject: []byte("a")})
+	results1, _ := replayDB.Get(context.Background(), &Pattern{Subject: []byte("a")})
 	if len(results1) != 0 {
 		t.Error("expected triple 'a' to be deleted")
 	}
 
-	results2, _ := replayDB.Get(&Pattern{Subject: []byte("d")})
+	results2, _ := replayDB.Get(context.Background(), &Pattern{Subject: []byte("d")})
 	if len(results2) != 1 {
 		t.Error("expected triple 'd' to exist")
 	}
@@ -1528,10 +1530,10 @@ func TestJournal_DisabledByDefault(t *testing.T) {
 
 	// Put a triple (journal should be disabled)
 	t1 := NewTripleFromStrings("a", "b", "c")
-	db.Put(t1)
+	db.Put(context.Background(), t1)
 
 	// Journal should be empty
-	count, _ := db.JournalCount(time.Time{})
+	count, _ := db.JournalCount(context.Background(), time.Time{})
 	if count != 0 {
 		t.Errorf("expected 0 journal entries (disabled), got %d", count)
 	}
@@ -1542,11 +1544,11 @@ func TestJournal_Iterator(t *testing.T) {
 	defer cleanup()
 
 	// Put some triples
-	db.Put(NewTripleFromStrings("a", "b", "c"))
-	db.Put(NewTripleFromStrings("d", "e", "f"))
-	db.Put(NewTripleFromStrings("g", "h", "i"))
+	db.Put(context.Background(), NewTripleFromStrings("a", "b", "c"))
+	db.Put(context.Background(), NewTripleFromStrings("d", "e", "f"))
+	db.Put(context.Background(), NewTripleFromStrings("g", "h", "i"))
 
-	iter, err := db.GetJournalIterator(time.Time{})
+	iter, err := db.GetJournalIterator(context.Background(), time.Time{})
 	if err != nil {
 		t.Fatalf("GetJournalIterator failed: %v", err)
 	}
@@ -1603,13 +1605,13 @@ func TestFacet_ComponentFacets(t *testing.T) {
 	defer cleanup()
 
 	// Set a facet on a subject
-	err := db.SetFacet(FacetSubject, []byte("alice"), []byte("age"), []byte("30"))
+	err := db.SetFacet(context.Background(), FacetSubject, []byte("alice"), []byte("age"), []byte("30"))
 	if err != nil {
 		t.Fatalf("SetFacet failed: %v", err)
 	}
 
 	// Get the facet
-	value, err := db.GetFacet(FacetSubject, []byte("alice"), []byte("age"))
+	value, err := db.GetFacet(context.Background(), FacetSubject, []byte("alice"), []byte("age"))
 	if err != nil {
 		t.Fatalf("GetFacet failed: %v", err)
 	}
@@ -1618,13 +1620,13 @@ func TestFacet_ComponentFacets(t *testing.T) {
 	}
 
 	// Set another facet
-	err = db.SetFacet(FacetSubject, []byte("alice"), []byte("city"), []byte("NYC"))
+	err = db.SetFacet(context.Background(), FacetSubject, []byte("alice"), []byte("city"), []byte("NYC"))
 	if err != nil {
 		t.Fatalf("SetFacet failed: %v", err)
 	}
 
 	// Get all facets
-	facets, err := db.GetFacets(FacetSubject, []byte("alice"))
+	facets, err := db.GetFacets(context.Background(), FacetSubject, []byte("alice"))
 	if err != nil {
 		t.Fatalf("GetFacets failed: %v", err)
 	}
@@ -1639,13 +1641,13 @@ func TestFacet_ComponentFacets(t *testing.T) {
 	}
 
 	// Delete a facet
-	err = db.DelFacet(FacetSubject, []byte("alice"), []byte("age"))
+	err = db.DelFacet(context.Background(), FacetSubject, []byte("alice"), []byte("age"))
 	if err != nil {
 		t.Fatalf("DelFacet failed: %v", err)
 	}
 
 	// Verify deletion
-	value, err = db.GetFacet(FacetSubject, []byte("alice"), []byte("age"))
+	value, err = db.GetFacet(context.Background(), FacetSubject, []byte("alice"), []byte("age"))
 	if err != nil {
 		t.Fatalf("GetFacet failed: %v", err)
 	}
@@ -1661,16 +1663,16 @@ func TestFacet_TripleFacets(t *testing.T) {
 	triple := NewTripleFromStrings("alice", "knows", "bob")
 
 	// Put the triple
-	db.Put(triple)
+	db.Put(context.Background(), triple)
 
 	// Set a facet on the triple
-	err := db.SetTripleFacet(triple, []byte("since"), []byte("2020"))
+	err := db.SetTripleFacet(context.Background(), triple, []byte("since"), []byte("2020"))
 	if err != nil {
 		t.Fatalf("SetTripleFacet failed: %v", err)
 	}
 
 	// Get the facet
-	value, err := db.GetTripleFacet(triple, []byte("since"))
+	value, err := db.GetTripleFacet(context.Background(), triple, []byte("since"))
 	if err != nil {
 		t.Fatalf("GetTripleFacet failed: %v", err)
 	}
@@ -1679,13 +1681,13 @@ func TestFacet_TripleFacets(t *testing.T) {
 	}
 
 	// Set another facet
-	err = db.SetTripleFacet(triple, []byte("weight"), []byte("0.9"))
+	err = db.SetTripleFacet(context.Background(), triple, []byte("weight"), []byte("0.9"))
 	if err != nil {
 		t.Fatalf("SetTripleFacet failed: %v", err)
 	}
 
 	// Get all facets
-	facets, err := db.GetTripleFacets(triple)
+	facets, err := db.GetTripleFacets(context.Background(), triple)
 	if err != nil {
 		t.Fatalf("GetTripleFacets failed: %v", err)
 	}
@@ -1694,23 +1696,23 @@ func TestFacet_TripleFacets(t *testing.T) {
 	}
 
 	// Delete a facet
-	err = db.DelTripleFacet(triple, []byte("since"))
+	err = db.DelTripleFacet(context.Background(), triple, []byte("since"))
 	if err != nil {
 		t.Fatalf("DelTripleFacet failed: %v", err)
 	}
 
-	facets, _ = db.GetTripleFacets(triple)
+	facets, _ = db.GetTripleFacets(context.Background(), triple)
 	if len(facets) != 1 {
 		t.Errorf("expected 1 facet after deletion, got %d", len(facets))
 	}
 
 	// Delete all facets
-	err = db.DelAllTripleFacets(triple)
+	err = db.DelAllTripleFacets(context.Background(), triple)
 	if err != nil {
 		t.Fatalf("DelAllTripleFacets failed: %v", err)
 	}
 
-	facets, _ = db.GetTripleFacets(triple)
+	facets, _ = db.GetTripleFacets(context.Background(), triple)
 	if len(facets) != 0 {
 		t.Errorf("expected 0 facets after delete all, got %d", len(facets))
 	}
@@ -1720,7 +1722,7 @@ func TestFacet_DisabledByDefault(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	err := db.SetFacet(FacetSubject, []byte("alice"), []byte("age"), []byte("30"))
+	err := db.SetFacet(context.Background(), FacetSubject, []byte("alice"), []byte("age"), []byte("30"))
 	if err != ErrFacetsDisabled {
 		t.Errorf("expected ErrFacetsDisabled, got %v", err)
 	}
@@ -1731,11 +1733,11 @@ func TestFacet_Iterator(t *testing.T) {
 	defer cleanup()
 
 	// Set multiple facets
-	db.SetFacet(FacetSubject, []byte("alice"), []byte("age"), []byte("30"))
-	db.SetFacet(FacetSubject, []byte("alice"), []byte("city"), []byte("NYC"))
-	db.SetFacet(FacetSubject, []byte("alice"), []byte("email"), []byte("alice@example.com"))
+	db.SetFacet(context.Background(), FacetSubject, []byte("alice"), []byte("age"), []byte("30"))
+	db.SetFacet(context.Background(), FacetSubject, []byte("alice"), []byte("city"), []byte("NYC"))
+	db.SetFacet(context.Background(), FacetSubject, []byte("alice"), []byte("email"), []byte("alice@example.com"))
 
-	iter, err := db.GetFacetIterator(FacetSubject, []byte("alice"))
+	iter, err := db.GetFacetIterator(context.Background(), FacetSubject, []byte("alice"))
 	if err != nil {
 		t.Fatalf("GetFacetIterator failed: %v", err)
 	}
@@ -1765,14 +1767,14 @@ func TestFacet_DifferentTypes(t *testing.T) {
 	defer cleanup()
 
 	// Set facets on different component types
-	db.SetFacet(FacetSubject, []byte("value1"), []byte("key"), []byte("subject_facet"))
-	db.SetFacet(FacetPredicate, []byte("value1"), []byte("key"), []byte("predicate_facet"))
-	db.SetFacet(FacetObject, []byte("value1"), []byte("key"), []byte("object_facet"))
+	db.SetFacet(context.Background(), FacetSubject, []byte("value1"), []byte("key"), []byte("subject_facet"))
+	db.SetFacet(context.Background(), FacetPredicate, []byte("value1"), []byte("key"), []byte("predicate_facet"))
+	db.SetFacet(context.Background(), FacetObject, []byte("value1"), []byte("key"), []byte("object_facet"))
 
 	// Verify they are stored separately
-	v1, _ := db.GetFacet(FacetSubject, []byte("value1"), []byte("key"))
-	v2, _ := db.GetFacet(FacetPredicate, []byte("value1"), []byte("key"))
-	v3, _ := db.GetFacet(FacetObject, []byte("value1"), []byte("key"))
+	v1, _ := db.GetFacet(context.Background(), FacetSubject, []byte("value1"), []byte("key"))
+	v2, _ := db.GetFacet(context.Background(), FacetPredicate, []byte("value1"), []byte("key"))
+	v3, _ := db.GetFacet(context.Background(), FacetObject, []byte("value1"), []byte("key"))
 
 	if string(v1) != "subject_facet" {
 		t.Errorf("expected 'subject_facet', got '%s'", v1)
@@ -1790,12 +1792,12 @@ func TestFacet_SpecialCharacters(t *testing.T) {
 	defer cleanup()
 
 	// Test with special characters in values
-	err := db.SetFacet(FacetSubject, []byte("alice::bob"), []byte("key::with::colons"), []byte("value\\with\\backslash"))
+	err := db.SetFacet(context.Background(), FacetSubject, []byte("alice::bob"), []byte("key::with::colons"), []byte("value\\with\\backslash"))
 	if err != nil {
 		t.Fatalf("SetFacet failed: %v", err)
 	}
 
-	value, err := db.GetFacet(FacetSubject, []byte("alice::bob"), []byte("key::with::colons"))
+	value, err := db.GetFacet(context.Background(), FacetSubject, []byte("alice::bob"), []byte("key::with::colons"))
 	if err != nil {
 		t.Fatalf("GetFacet failed: %v", err)
 	}
@@ -1812,12 +1814,12 @@ func TestUnicode_BasicTriple(t *testing.T) {
 
 	// Chinese characters
 	triple := NewTriple([]byte("车"), []byte("是"), []byte("交通工具"))
-	err := db.Put(triple)
+	err := db.Put(context.Background(), triple)
 	if err != nil {
 		t.Fatalf("Put failed: %v", err)
 	}
 
-	results, err := db.Get(&Pattern{Subject: []byte("车")})
+	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("车")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -1835,13 +1837,13 @@ func TestUnicode_Emoji(t *testing.T) {
 
 	// Emoji and special unicode characters from JS test
 	triple := NewTriple([]byte("􀃿"), []byte("🜁"), []byte("🚃"))
-	err := db.Put(triple)
+	err := db.Put(context.Background(), triple)
 	if err != nil {
 		t.Fatalf("Put failed: %v", err)
 	}
 
 	t.Run("Get by subject", func(t *testing.T) {
-		results, err := db.Get(&Pattern{Subject: []byte("􀃿")})
+		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("􀃿")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1851,7 +1853,7 @@ func TestUnicode_Emoji(t *testing.T) {
 	})
 
 	t.Run("Get by object", func(t *testing.T) {
-		results, err := db.Get(&Pattern{Object: []byte("🚃")})
+		results, err := db.Get(context.Background(), &Pattern{Object: []byte("🚃")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1861,7 +1863,7 @@ func TestUnicode_Emoji(t *testing.T) {
 	})
 
 	t.Run("Get by predicate", func(t *testing.T) {
-		results, err := db.Get(&Pattern{Predicate: []byte("🜁")})
+		results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("🜁")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1871,7 +1873,7 @@ func TestUnicode_Emoji(t *testing.T) {
 	})
 
 	t.Run("Get by subject and predicate", func(t *testing.T) {
-		results, err := db.Get(&Pattern{Subject: []byte("􀃿"), Predicate: []byte("🜁")})
+		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("􀃿"), Predicate: []byte("🜁")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1888,9 +1890,9 @@ func TestUnicode_ExactMatch(t *testing.T) {
 	// Chinese characters - test exact matching
 	t1 := NewTriple([]byte("飞机"), []byte("是"), []byte("交通工具"))
 	t2 := NewTriple([]byte("车"), []byte("是"), []byte("动物"))
-	db.Put(t1, t2)
+	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(&Pattern{Subject: []byte("车")})
+	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("车")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -1908,10 +1910,10 @@ func TestUnicode_MultipleTriples(t *testing.T) {
 
 	t1 := NewTriple([]byte("飞机"), []byte("是"), []byte("交通工具"))
 	t2 := NewTriple([]byte("狗熊"), []byte("是"), []byte("动物"))
-	db.Put(t1, t2)
+	db.Put(context.Background(), t1, t2)
 
 	t.Run("Get by shared predicate", func(t *testing.T) {
-		results, err := db.Get(&Pattern{Predicate: []byte("是")})
+		results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("是")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1921,8 +1923,8 @@ func TestUnicode_MultipleTriples(t *testing.T) {
 	})
 
 	t.Run("Delete and verify", func(t *testing.T) {
-		db.Del(t2)
-		results, err := db.Get(&Pattern{Predicate: []byte("是")})
+		db.Del(context.Background(), t2)
+		results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("是")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1938,13 +1940,13 @@ func TestUnicode_Filter(t *testing.T) {
 
 	t1 := NewTriple([]byte("车"), []byte("是"), []byte("动物"))
 	t2 := NewTriple([]byte("车"), []byte("是"), []byte("交通工具"))
-	db.Put(t1, t2)
+	db.Put(context.Background(), t1, t2)
 
 	filter := func(triple *Triple) bool {
 		return string(triple.Object) == "动物"
 	}
 
-	results, err := db.Get(&Pattern{Subject: []byte("车"), Predicate: []byte("是"), Filter: filter})
+	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("车"), Predicate: []byte("是"), Filter: filter})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -1968,12 +1970,12 @@ func TestBinary_ArbitraryBytes(t *testing.T) {
 	object := []byte{0xAA, 0xBB, 0xCC, 0x00, 0xDD}
 
 	triple := NewTriple(subject, predicate, object)
-	err := db.Put(triple)
+	err := db.Put(context.Background(), triple)
 	if err != nil {
 		t.Fatalf("Put failed: %v", err)
 	}
 
-	results, err := db.Get(&Pattern{Subject: subject})
+	results, err := db.Get(context.Background(), &Pattern{Subject: subject})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2003,9 +2005,9 @@ func TestBinary_MixedContent(t *testing.T) {
 	object := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A} // PNG magic bytes
 
 	triple := NewTriple(subject, predicate, object)
-	db.Put(triple)
+	db.Put(context.Background(), triple)
 
-	results, err := db.Get(&Pattern{Subject: subject, Predicate: predicate})
+	results, err := db.Get(context.Background(), &Pattern{Subject: subject, Predicate: predicate})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2028,9 +2030,9 @@ func TestEdgeCase_PrefixMatching(t *testing.T) {
 	// Ensure 'a' doesn't match 'a1'
 	t1 := NewTripleFromStrings("a1", "b", "c")
 	t2 := NewTripleFromStrings("a", "b", "d")
-	db.Put(t1, t2)
+	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(&Pattern{Subject: []byte("a")})
+	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2048,9 +2050,9 @@ func TestEdgeCase_StringEndingWithColon(t *testing.T) {
 
 	t1 := NewTripleFromStrings("a", "b", "c")
 	t2 := NewTripleFromStrings("a:", "b", "c")
-	db.Put(t1, t2)
+	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(&Pattern{Subject: []byte("a:")})
+	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a:")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2068,9 +2070,9 @@ func TestEdgeCase_StringEndingWithBackslash(t *testing.T) {
 
 	t1 := NewTripleFromStrings("a", "b", "c")
 	t2 := NewTripleFromStrings("a\\", "b", "c")
-	db.Put(t1, t2)
+	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(&Pattern{Subject: []byte("a\\")})
+	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a\\")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2088,9 +2090,9 @@ func TestEdgeCase_StringWithEscapedSeparator(t *testing.T) {
 
 	t1 := NewTripleFromStrings("a", "b", "c")
 	t2 := NewTripleFromStrings("a\\::a", "b", "c")
-	db.Put(t1, t2)
+	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(&Pattern{Subject: []byte("a")})
+	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2105,10 +2107,10 @@ func TestEdgeCase_EmptyPattern(t *testing.T) {
 
 	t1 := NewTripleFromStrings("a", "b", "c")
 	t2 := NewTripleFromStrings("d", "e", "f")
-	db.Put(t1, t2)
+	db.Put(context.Background(), t1, t2)
 
 	// Empty pattern should return all triples
-	results, err := db.Get(&Pattern{})
+	results, err := db.Get(context.Background(), &Pattern{})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2123,9 +2125,9 @@ func TestEdgeCase_Reverse(t *testing.T) {
 
 	t1 := NewTripleFromStrings("a1", "b", "c")
 	t2 := NewTripleFromStrings("a2", "b", "d")
-	db.Put(t1, t2)
+	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(&Pattern{Predicate: []byte("b"), Reverse: true})
+	results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("b"), Reverse: true})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2148,9 +2150,9 @@ func TestEdgeCase_ReverseLimitOffset(t *testing.T) {
 	t1 := NewTripleFromStrings("a1", "b", "c")
 	t2 := NewTripleFromStrings("a2", "b", "d")
 	t3 := NewTripleFromStrings("a3", "b", "e")
-	db.Put(t1, t2, t3)
+	db.Put(context.Background(), t1, t2, t3)
 
-	results, err := db.Get(&Pattern{Predicate: []byte("b"), Reverse: true, Limit: 1})
+	results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("b"), Reverse: true, Limit: 1})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2366,9 +2368,9 @@ func TestDB_GetIterator(t *testing.T) {
 
 	t1 := NewTripleFromStrings("a", "b", "c")
 	t2 := NewTripleFromStrings("a", "b", "d")
-	db.Put(t1, t2)
+	db.Put(context.Background(), t1, t2)
 
-	iter, err := db.GetIterator(&Pattern{Subject: []byte("a")})
+	iter, err := db.GetIterator(context.Background(), &Pattern{Subject: []byte("a")})
 	if err != nil {
 		t.Fatalf("GetIterator failed: %v", err)
 	}
@@ -2426,13 +2428,13 @@ func TestNavigator_Triples(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	db.Put(
+	db.Put(context.Background(),
 		NewTripleFromStrings("alice", "knows", "bob"),
 		NewTripleFromStrings("bob", "knows", "charlie"),
 	)
 
 	// Use Where to add a pattern that binds subject, predicate, object
-	nav := db.Nav(nil).Where(&Pattern{
+	nav := db.Nav(context.Background(), nil).Where(&Pattern{
 		Subject:   V("s"),
 		Predicate: V("p"),
 		Object:    V("o"),
@@ -2465,12 +2467,12 @@ func TestNavigator_Filter(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	db.Put(
+	db.Put(context.Background(),
 		NewTripleFromStrings("alice", "age", "30"),
 		NewTripleFromStrings("bob", "age", "25"),
 	)
 
-	nav := db.Nav(nil)
+	nav := db.Nav(context.Background(), nil)
 	nav.conditions = append(nav.conditions, &Pattern{Predicate: []byte("age"), Object: V("age")})
 	nav = nav.Filter(func(t *Triple) bool {
 		return string(t.Subject) == "alice"
@@ -2489,9 +2491,9 @@ func TestNavigator_Where(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	db.Put(NewTripleFromStrings("alice", "knows", "bob"))
+	db.Put(context.Background(), NewTripleFromStrings("alice", "knows", "bob"))
 
-	nav := db.Nav(nil).Where(&Pattern{
+	nav := db.Nav(context.Background(), nil).Where(&Pattern{
 		Subject:   V("s"),
 		Predicate: []byte("knows"),
 		Object:    V("o"),
@@ -2545,9 +2547,9 @@ func TestJournalIterator_Key(t *testing.T) {
 	defer db.Close()
 
 	// Add a triple to create journal entry
-	db.Put(NewTripleFromStrings("a", "b", "c"))
+	db.Put(context.Background(), NewTripleFromStrings("a", "b", "c"))
 
-	iter, err := db.GetJournalIterator(time.Time{})
+	iter, err := db.GetJournalIterator(context.Background(), time.Time{})
 	if err != nil {
 		t.Fatalf("GetJournalIterator failed: %v", err)
 	}
@@ -2580,11 +2582,11 @@ func TestGetTripleFacetIterator(t *testing.T) {
 	defer db.Close()
 
 	triple := NewTripleFromStrings("alice", "knows", "bob")
-	db.Put(triple)
-	db.SetTripleFacet(triple, []byte("since"), []byte("2020"))
-	db.SetTripleFacet(triple, []byte("strength"), []byte("strong"))
+	db.Put(context.Background(), triple)
+	db.SetTripleFacet(context.Background(), triple, []byte("since"), []byte("2020"))
+	db.SetTripleFacet(context.Background(), triple, []byte("strength"), []byte("strong"))
 
-	iter, err := db.GetTripleFacetIterator(triple)
+	iter, err := db.GetTripleFacetIterator(context.Background(), triple)
 	if err != nil {
 		t.Fatalf("GetTripleFacetIterator failed: %v", err)
 	}
@@ -2631,11 +2633,11 @@ func TestOpenWithDB(t *testing.T) {
 
 	// Verify it works
 	triple := NewTripleFromStrings("a", "b", "c")
-	if err := db.Put(triple); err != nil {
+	if err := db.Put(context.Background(), triple); err != nil {
 		t.Fatalf("Put failed: %v", err)
 	}
 
-	results, err := db.Get(&Pattern{Subject: []byte("a")})
+	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2646,31 +2648,52 @@ func TestOpenWithDB(t *testing.T) {
 	db.Close()
 }
 
+func TestOpen_Errors(t *testing.T) {
+	t.Parallel()
+	db, err := Open("")
+	if err == nil {
+		t.Error("expected error for empty path")
+	}
+	if db != nil {
+		t.Error("expected nil db for empty path")
+	}
+}
+
+func TestWithLogger(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	db, err := Open(filepath.Join(dir, "logger.db"), WithLogger(nil))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	db.Close()
+}
+
 func TestValidateTriple_EdgeCases(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
 	// Nil triple
-	err := db.Put(nil)
-	if err != ErrInvalidTriple {
+	err := db.Put(context.Background(), nil)
+	if !errors.Is(err, ErrInvalidTriple) {
 		t.Errorf("expected ErrInvalidTriple for nil triple, got %v", err)
 	}
 
 	// Triple with nil subject
-	err = db.Put(&Triple{Subject: nil, Predicate: []byte("p"), Object: []byte("o")})
-	if err != ErrInvalidTriple {
+	err = db.Put(context.Background(), &Triple{Subject: nil, Predicate: []byte("p"), Object: []byte("o")})
+	if !errors.Is(err, ErrInvalidTriple) {
 		t.Errorf("expected ErrInvalidTriple for nil subject, got %v", err)
 	}
 
 	// Triple with nil predicate
-	err = db.Put(&Triple{Subject: []byte("s"), Predicate: nil, Object: []byte("o")})
-	if err != ErrInvalidTriple {
+	err = db.Put(context.Background(), &Triple{Subject: []byte("s"), Predicate: nil, Object: []byte("o")})
+	if !errors.Is(err, ErrInvalidTriple) {
 		t.Errorf("expected ErrInvalidTriple for nil predicate, got %v", err)
 	}
 
 	// Triple with nil object
-	err = db.Put(&Triple{Subject: []byte("s"), Predicate: []byte("p"), Object: nil})
-	if err != ErrInvalidTriple {
+	err = db.Put(context.Background(), &Triple{Subject: []byte("s"), Predicate: []byte("p"), Object: nil})
+	if !errors.Is(err, ErrInvalidTriple) {
 		t.Errorf("expected ErrInvalidTriple for nil object, got %v", err)
 	}
 }
@@ -2755,10 +2778,10 @@ func TestNavigator_Go_EdgeCases(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	db.Put(NewTripleFromStrings("alice", "knows", "bob"))
+	db.Put(context.Background(), NewTripleFromStrings("alice", "knows", "bob"))
 
 	// Go with nil creates a new variable
-	nav := db.Nav(nil).Go(nil)
+	nav := db.Nav(context.Background(), nil).Go(nil)
 	if nav.lastElement == nil {
 		t.Error("Go(nil) should create a new variable")
 	}
@@ -2767,26 +2790,26 @@ func TestNavigator_Go_EdgeCases(t *testing.T) {
 	}
 
 	// Go with []byte
-	nav = db.Nav(nil).Go([]byte("test"))
+	nav = db.Nav(context.Background(), nil).Go([]byte("test"))
 	if b, ok := nav.lastElement.([]byte); !ok || string(b) != "test" {
 		t.Error("Go([]byte) should set lastElement to that []byte")
 	}
 
 	// Go with string
-	nav = db.Nav(nil).Go("test")
+	nav = db.Nav(context.Background(), nil).Go("test")
 	if b, ok := nav.lastElement.([]byte); !ok || string(b) != "test" {
 		t.Error("Go(string) should convert to []byte")
 	}
 
 	// Go with *Variable
 	v := V("myvar")
-	nav = db.Nav(nil).Go(v)
+	nav = db.Nav(context.Background(), nil).Go(v)
 	if nav.lastElement != v {
 		t.Error("Go(*Variable) should set lastElement to that Variable")
 	}
 
 	// Go with unknown type creates a new variable
-	nav = db.Nav(nil).Go(123)
+	nav = db.Nav(context.Background(), nil).Go(123)
 	if _, ok := nav.lastElement.(*Variable); !ok {
 		t.Error("Go(unknown type) should create a new Variable")
 	}
@@ -2796,10 +2819,10 @@ func TestNavigator_normalizeValue_EdgeCases(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	db.Put(NewTripleFromStrings("alice", "knows", "bob"))
+	db.Put(context.Background(), NewTripleFromStrings("alice", "knows", "bob"))
 
 	// Test ArchOut with empty []byte predicate - treated as nil/wildcard
-	nav := db.Nav([]byte("alice")).ArchOut([]byte{})
+	nav := db.Nav(context.Background(), []byte("alice")).ArchOut([]byte{})
 	solutions, err := nav.Solutions()
 	if err != nil {
 		t.Fatalf("Solutions failed: %v", err)
@@ -2810,7 +2833,7 @@ func TestNavigator_normalizeValue_EdgeCases(t *testing.T) {
 	}
 
 	// Test ArchOut with empty string predicate
-	nav = db.Nav([]byte("alice")).ArchOut("")
+	nav = db.Nav(context.Background(), []byte("alice")).ArchOut("")
 	solutions, err = nav.Solutions()
 	if err != nil {
 		t.Fatalf("Solutions failed: %v", err)
