@@ -60,9 +60,9 @@ var AllIndexes = []IndexName{IndexSPO, IndexSOP, IndexPOS, IndexPSO, IndexOPS, I
 var keySeparator = []byte("::")
 
 // UpperBound is the upper bound character for range queries.
-// Using a high UTF-8 sequence for range bounds.
-// This is the same approach as the JS version, using bytes directly.
-var upperBound = []byte{0xed, 0xaf, 0xbf, 0xed, 0xbf, 0xbf}
+// Using 0xFF bytes as the upper bound since they are the highest byte values
+// and will be greater than any valid UTF-8 sequence.
+var upperBound = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 
 // Escape escapes special characters in a value for use in keys.
 // Escapes backslash (\) and colon (:) characters.

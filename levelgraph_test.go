@@ -1791,3 +1791,361 @@ func TestFacet_SpecialCharacters(t *testing.T) {
 		t.Errorf("expected 'value\\with\\backslash', got '%s'", value)
 	}
 }
+
+// Unicode tests - ported from triple_unicode_store_spec.js
+
+func TestUnicode_BasicTriple(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Chinese characters
+	triple := NewTriple([]byte("车"), []byte("是"), []byte("交通工具"))
+	err := db.Put(triple)
+	if err != nil {
+		t.Fatalf("Put failed: %v", err)
+	}
+
+	results, err := db.Get(&Pattern{Subject: []byte("车")})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if string(results[0].Subject) != "车" {
+		t.Errorf("expected '车', got '%s'", results[0].Subject)
+	}
+}
+
+func TestUnicode_Emoji(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Emoji and special unicode characters from JS test
+	triple := NewTriple([]byte("􀃿"), []byte("🜁"), []byte("🚃"))
+	err := db.Put(triple)
+	if err != nil {
+		t.Fatalf("Put failed: %v", err)
+	}
+
+	t.Run("Get by subject", func(t *testing.T) {
+		results, err := db.Get(&Pattern{Subject: []byte("􀃿")})
+		if err != nil {
+			t.Fatalf("Get failed: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result, got %d", len(results))
+		}
+	})
+
+	t.Run("Get by object", func(t *testing.T) {
+		results, err := db.Get(&Pattern{Object: []byte("🚃")})
+		if err != nil {
+			t.Fatalf("Get failed: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result, got %d", len(results))
+		}
+	})
+
+	t.Run("Get by predicate", func(t *testing.T) {
+		results, err := db.Get(&Pattern{Predicate: []byte("🜁")})
+		if err != nil {
+			t.Fatalf("Get failed: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result, got %d", len(results))
+		}
+	})
+
+	t.Run("Get by subject and predicate", func(t *testing.T) {
+		results, err := db.Get(&Pattern{Subject: []byte("􀃿"), Predicate: []byte("🜁")})
+		if err != nil {
+			t.Fatalf("Get failed: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result, got %d", len(results))
+		}
+	})
+}
+
+func TestUnicode_ExactMatch(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Chinese characters - test exact matching
+	t1 := NewTriple([]byte("飞机"), []byte("是"), []byte("交通工具"))
+	t2 := NewTriple([]byte("车"), []byte("是"), []byte("动物"))
+	db.Put(t1, t2)
+
+	results, err := db.Get(&Pattern{Subject: []byte("车")})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for exact match, got %d", len(results))
+	}
+	if string(results[0].Object) != "动物" {
+		t.Errorf("expected object '动物', got '%s'", results[0].Object)
+	}
+}
+
+func TestUnicode_MultipleTriples(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	t1 := NewTriple([]byte("飞机"), []byte("是"), []byte("交通工具"))
+	t2 := NewTriple([]byte("狗熊"), []byte("是"), []byte("动物"))
+	db.Put(t1, t2)
+
+	t.Run("Get by shared predicate", func(t *testing.T) {
+		results, err := db.Get(&Pattern{Predicate: []byte("是")})
+		if err != nil {
+			t.Fatalf("Get failed: %v", err)
+		}
+		if len(results) != 2 {
+			t.Fatalf("expected 2 results, got %d", len(results))
+		}
+	})
+
+	t.Run("Delete and verify", func(t *testing.T) {
+		db.Del(t2)
+		results, err := db.Get(&Pattern{Predicate: []byte("是")})
+		if err != nil {
+			t.Fatalf("Get failed: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result after delete, got %d", len(results))
+		}
+	})
+}
+
+func TestUnicode_Filter(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	t1 := NewTriple([]byte("车"), []byte("是"), []byte("动物"))
+	t2 := NewTriple([]byte("车"), []byte("是"), []byte("交通工具"))
+	db.Put(t1, t2)
+
+	filter := func(triple *Triple) bool {
+		return string(triple.Object) == "动物"
+	}
+
+	results, err := db.Get(&Pattern{Subject: []byte("车"), Predicate: []byte("是"), Filter: filter})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 filtered result, got %d", len(results))
+	}
+	if string(results[0].Object) != "动物" {
+		t.Errorf("expected '动物', got '%s'", results[0].Object)
+	}
+}
+
+// Binary data tests - test arbitrary byte sequences
+
+func TestBinary_ArbitraryBytes(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Test with binary data containing null bytes and other special bytes
+	subject := []byte{0x00, 0x01, 0x02, 0xFF, 0xFE}
+	predicate := []byte{0x10, 0x20, 0x30}
+	object := []byte{0xAA, 0xBB, 0xCC, 0x00, 0xDD}
+
+	triple := NewTriple(subject, predicate, object)
+	err := db.Put(triple)
+	if err != nil {
+		t.Fatalf("Put failed: %v", err)
+	}
+
+	results, err := db.Get(&Pattern{Subject: subject})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	// Verify the binary data is preserved exactly
+	if string(results[0].Subject) != string(subject) {
+		t.Errorf("subject mismatch")
+	}
+	if string(results[0].Predicate) != string(predicate) {
+		t.Errorf("predicate mismatch")
+	}
+	if string(results[0].Object) != string(object) {
+		t.Errorf("object mismatch")
+	}
+}
+
+func TestBinary_MixedContent(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Mix of text and binary
+	subject := []byte("user:123")
+	predicate := []byte("avatar")
+	object := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A} // PNG magic bytes
+
+	triple := NewTriple(subject, predicate, object)
+	db.Put(triple)
+
+	results, err := db.Get(&Pattern{Subject: subject, Predicate: predicate})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	// Check PNG magic bytes preserved
+	if results[0].Object[0] != 0x89 || results[0].Object[1] != 0x50 {
+		t.Error("binary data not preserved correctly")
+	}
+}
+
+// Additional edge case tests from JS spec
+
+func TestEdgeCase_PrefixMatching(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Ensure 'a' doesn't match 'a1'
+	t1 := NewTripleFromStrings("a1", "b", "c")
+	t2 := NewTripleFromStrings("a", "b", "d")
+	db.Put(t1, t2)
+
+	results, err := db.Get(&Pattern{Subject: []byte("a")})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result (exact match only), got %d", len(results))
+	}
+	if string(results[0].Object) != "d" {
+		t.Errorf("expected object 'd', got '%s'", results[0].Object)
+	}
+}
+
+func TestEdgeCase_StringEndingWithColon(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	t1 := NewTripleFromStrings("a", "b", "c")
+	t2 := NewTripleFromStrings("a:", "b", "c")
+	db.Put(t1, t2)
+
+	results, err := db.Get(&Pattern{Subject: []byte("a:")})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if string(results[0].Subject) != "a:" {
+		t.Errorf("expected 'a:', got '%s'", results[0].Subject)
+	}
+}
+
+func TestEdgeCase_StringEndingWithBackslash(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	t1 := NewTripleFromStrings("a", "b", "c")
+	t2 := NewTripleFromStrings("a\\", "b", "c")
+	db.Put(t1, t2)
+
+	results, err := db.Get(&Pattern{Subject: []byte("a\\")})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if string(results[0].Subject) != "a\\" {
+		t.Errorf("expected 'a\\', got '%s'", results[0].Subject)
+	}
+}
+
+func TestEdgeCase_StringWithEscapedSeparator(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	t1 := NewTripleFromStrings("a", "b", "c")
+	t2 := NewTripleFromStrings("a\\::a", "b", "c")
+	db.Put(t1, t2)
+
+	results, err := db.Get(&Pattern{Subject: []byte("a")})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+}
+
+func TestEdgeCase_EmptyPattern(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	t1 := NewTripleFromStrings("a", "b", "c")
+	t2 := NewTripleFromStrings("d", "e", "f")
+	db.Put(t1, t2)
+
+	// Empty pattern should return all triples
+	results, err := db.Get(&Pattern{})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results for empty pattern, got %d", len(results))
+	}
+}
+
+func TestEdgeCase_Reverse(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	t1 := NewTripleFromStrings("a1", "b", "c")
+	t2 := NewTripleFromStrings("a2", "b", "d")
+	db.Put(t1, t2)
+
+	results, err := db.Get(&Pattern{Predicate: []byte("b"), Reverse: true})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	// In reverse order, a2 should come before a1
+	if string(results[0].Subject) != "a2" {
+		t.Errorf("expected first result 'a2' in reverse, got '%s'", results[0].Subject)
+	}
+	if string(results[1].Subject) != "a1" {
+		t.Errorf("expected second result 'a1' in reverse, got '%s'", results[1].Subject)
+	}
+}
+
+func TestEdgeCase_ReverseLimitOffset(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	t1 := NewTripleFromStrings("a1", "b", "c")
+	t2 := NewTripleFromStrings("a2", "b", "d")
+	t3 := NewTripleFromStrings("a3", "b", "e")
+	db.Put(t1, t2, t3)
+
+	results, err := db.Get(&Pattern{Predicate: []byte("b"), Reverse: true, Limit: 1})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if string(results[0].Subject) != "a3" {
+		t.Errorf("expected 'a3' with reverse and limit, got '%s'", results[0].Subject)
+	}
+}

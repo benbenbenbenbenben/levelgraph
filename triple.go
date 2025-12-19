@@ -26,6 +26,7 @@ package levelgraph
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 )
 
@@ -80,18 +81,17 @@ func (t *Triple) String() string {
 }
 
 // MarshalJSON implements json.Marshaler for Triple.
-// This handles the []byte to base64/string conversion properly.
+// Uses base64 encoding for binary data to preserve all byte values.
 func (t *Triple) MarshalJSON() ([]byte, error) {
-	// We store as strings in JSON for readability, but internal storage is []byte
 	type tripleJSON struct {
 		Subject   string `json:"subject"`
 		Predicate string `json:"predicate"`
 		Object    string `json:"object"`
 	}
 	return json.Marshal(tripleJSON{
-		Subject:   string(t.Subject),
-		Predicate: string(t.Predicate),
-		Object:    string(t.Object),
+		Subject:   base64.StdEncoding.EncodeToString(t.Subject),
+		Predicate: base64.StdEncoding.EncodeToString(t.Predicate),
+		Object:    base64.StdEncoding.EncodeToString(t.Object),
 	})
 }
 
@@ -106,9 +106,20 @@ func (t *Triple) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &tj); err != nil {
 		return err
 	}
-	t.Subject = []byte(tj.Subject)
-	t.Predicate = []byte(tj.Predicate)
-	t.Object = []byte(tj.Object)
+
+	var err error
+	t.Subject, err = base64.StdEncoding.DecodeString(tj.Subject)
+	if err != nil {
+		return err
+	}
+	t.Predicate, err = base64.StdEncoding.DecodeString(tj.Predicate)
+	if err != nil {
+		return err
+	}
+	t.Object, err = base64.StdEncoding.DecodeString(tj.Object)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

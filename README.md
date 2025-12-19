@@ -1,746 +1,363 @@
-LevelGraph
-===========
-
-<!-- &nbsp;&nbsp;&nbsp;[![Dependency Status](https://david-dm.org/levelgraph/levelgraph.svg?theme=shields.io)](https://david-dm.org/levelgraph/levelgraph) -->
+# LevelGraph
 
 ![Logo](https://raw.githubusercontent.com/levelgraph/levelgraph/master/logo.png)
 
-[![NPM](https://nodei.co/npm/levelgraph.png)](https://nodei.co/npm/levelgraph/)
+**LevelGraph** is a Graph Database built on the ultra-fast key-value store
+[LevelDB](https://github.com/google/leveldb). This is a Go port of the original
+[JavaScript LevelGraph](https://github.com/levelgraph/levelgraph).
 
-__LevelGraph__ is a Graph Database. Unlike many other graph database,
-__LevelGraph__ is built on the uber-fast key-value store
-[LevelDB][gh:google/leveldb] through the powerful [level][gh:level/level]
-library. You can use it inside your node.js application or in any
-IndexedDB-powered Browser.
+LevelGraph uses the **Hexastore** approach as presented in the article:
+[Hexastore: sextuple indexing for semantic web data management](https://sci-hub.se/10.14778/1453856.1453965)
+(C. Weiss, P. Karras, A. Bernstein - Proceedings of the VLDB Endowment, 2008).
+Following this approach, LevelGraph uses six indices for every triple, enabling
+extremely fast pattern matching queries.
 
-__LevelGraph__ loosely follows the __Hexastore__ approach as presented in the
-article: [Hexastore: sextuple indexing for semantic web data management C Weiss,
-P Karras, A Bernstein - Proceedings of the VLDB Endowment,
-2008](https://sci-hub.se/10.14778/1453856.1453965).
-Following this approach, __LevelGraph__ uses six indices for every triple, in
-order to access them as fast as it is possible.
+## Installation
 
-__LevelGraph__ was presented in the paper [Graph databases in the browser: using
-LevelGraph to explore New Delhi - A. Maccioni, M. Collina - Proceedings of the
-VLDB Endowment, 2016](http://www.vldb.org/pvldb/vol9/p1469-maccioni.pdf).
-
-Check out a [slideshow](http://nodejsconfit.levelgraph.io) that introduces you
-to LevelGraph by [@matteocollina][x:matteocollina] at http://nodejsconf.it.
-
-Also, give the [LevelGraph Playground][http:playground] to get a quick feel for
-adding JSON-LD and N3/Turtle documents to a filter-able subject, predicate,
-object table. The `db` variable in the browser console is very useful for
-checking out the full power of LevelGraph.
-
-**LevelGraph** is an **OPEN Open Source Project**, see the
-[Contributing](#contributing) section to find out what this means.
-
-## Table of Contents
-
-* [Install](#install)
-* [Usage](#usage)
-  * [Get and Put](#get-and-put)
-    * [Triple Properties](#triple-properties)
-    * [Limit and Offset](#limit-and-offset)
-    * [Reverse Order](#reverse-order)
-    * [Updating](#updating)
-    * [Multiple Puts](#multiple-puts)
-  * [Deleting](#deleting)
-  * [Searches](#searches)
-    * [Search Without Streams](#search-without-streams)
-    * [Triple Generation](#triple-generation)
-    * [Limit and Offset](#limit-and-offset-1)
-  * [Filtering](#filtering)
-  * [Putting and Deleting through Streams](#putting-and-deleting-through-streams)
-  * [Generate batch operations](#generate-batch-operations)
-  * [Generate level-read-stream query](#generate-level-read-stream-query)
-* [Navigator API](#navigator-api)
-* [Plugin integration](#plugin-integration)
-* [Browser usage](#browser-usage)
-* [RDF support](#rdf-support)
-* [Extensions](#extensions)
-* [TODO](#todo)
-* [Contributing](#contributing)
-* [Credits](#credits)
-* [Contributors](#contributors)
-* [LICENSE - "MIT License"](#license---mit-license)
-
-
-## Install
-
-### On Node.JS
-
-```
-npm install --save levelgraph
+```bash
+go get github.com/levelgraph/levelgraph
 ```
 
-Testing of levelgraph is only done using Node.JS 18 and 20. Other versions may
-be supported, but your mileage may vary.
+## Quick Start
 
-### In the Browser
+```go
+package main
 
-Just download [levelgraph.min.js](build/levelgraph.min.js) and you are done!
+import (
+    "fmt"
+    "log"
 
-Alternatively, you could load levelgraph in your project and bundle using
-[browserify](https://browserify.org/) or [esbuild](https://esbuild.github.io/).
+    "github.com/levelgraph/levelgraph"
+)
 
-## Usage
-
-The LevelGraph API remains the same for Node.JS and the browsers, however the
-initialization change slightly.
-
-Initializing a database is very easy:
-
-```javascript
-var { Level }  = require("level");
-var levelgraph = require("levelgraph");
-
-// just use this in the browser with the provided bundle
-var db = levelgraph(new Level("yourdb"));
-```
-
-### Get and Put
-
-Inserting a triple in the database is extremely easy:
-
-```javascript
-var triple = { subject: "a", predicate: "b", object: "c" };
-db.put(triple, function(err) {
-  // do something after the triple is inserted
-});
-```
-
-Retrieving it through pattern-matching is extremely easy:
-```javascript
-db.get({ subject: "a" }, function(err, list) {
-  console.log(list);
-});
-```
-
-It even supports a Stream interface:
-
-```javascript
-var stream = db.getStream({ predicate: "b" });
-stream.on("data", function(data) {
-  console.log(data);
-});
-```
-
-#### Triple Properties
-
-LevelGraph supports adding properties to triples with very little overhead
-(apart from storage costs). It is very easy:
-
-```javascript
-var triple = { subject: "a", predicate: "b", object: "c", "someStuff": 42 };
-db.put(triple, function() {
-  db.get({ subject: "a" }, function(err, list) {
-    console.log(list);
-  });
-});
-```
-
-#### Limit and Offset
-
-It is possible to implement pagination of get results by using `'offset'` and
-`'limit'`, like so:
-
-```javascript
-db.get({ subject: "a", limit: 4, offset: 2}, function(err, list) {
-  console.log(list);
-});
-```
-
-#### Reverse Order
-
-It is possible to get results in reverse lexicographical order using the
-`'reverse'` option. This option is only supported by `get()` and `getStream()`
-and not available in `search()`.
-
-```javascript
-db.get({ predicate: "b", reverse: true }, function (err, list) {
-  console.log(list);
-});
-```
-
-#### Updating
-
-__LevelGraph__ does not support in-place update, as there are no constraint in
-the graph. In order to update a triple, you should first delete it:
-
-```javascript
-var triple = { subject: "a", predicate: "b", object: "c" };
-db.put(triple, function(err) {
-  db.del(triple, function(err) {
-    triple.object = 'd';
-    db.put(triple, function(err) {
-      // do something with your update
-    });
-  });
-});
-```
-
-#### Multiple Puts
-
-__LevelGraph__ also supports putting multiple triples:
-
-```javascript
-var triple1 = { subject: "a1", predicate: "b", object: "c" };
-var triple2 = { subject: "a2", predicate: "b", object: "d" };
-db.put([triple1, triple2],  function(err) {
-  // do something after the triples are inserted
-});
-```
-
-### Deleting
-
-Deleting is easy too:
-
-```javascript
-var triple = { subject: "a", predicate: "b", object: "c" };
-db.del(triple, function(err) {
-  // do something after the triple is deleted
-});
-```
-
-### Searches
-
-__LevelGraph__ also supports searches:
-
-```javascript
-db.put([{
-  subject: "matteo",
-  predicate: "friend",
-  object: "daniele"
-}, {
-  subject: "daniele",
-  predicate: "friend",
-  object: "matteo"
-}, {
-  subject: "daniele",
-  predicate: "friend",
-  object: "marco"
-}, {
-  subject: "lucio",
-  predicate: "friend",
-  object: "matteo"
-}, {
-  subject: "lucio",
-  predicate: "friend",
-  object: "marco"
-}, {
-  subject: "marco",
-  predicate: "friend",
-  object: "davide"
-}], function () {
-
-  var stream = db.searchStream([{
-    subject: "matteo",
-    predicate: "friend",
-    object: db.v("x")
-  }, {
-    subject: db.v("x"),
-    predicate: "friend",
-    object: db.v("y")
-  }, {
-    subject: db.v("y"),
-    predicate: "friend",
-    object: "davide"
-  }]);
-
-  stream.on("data", function(data) {
-    // this will print "{ x: 'daniele', y: 'marco' }"
-    console.log(data);
-  });
-});
-```
-
-#### Search Without Streams
-
-It also supports a similar API without streams:
-
-```javascript
-db.put([{
- //...
-}], function () {
-
-  db.search([{
-    subject: "matteo",
-    predicate: "friend",
-    object: db.v("x")
-  }, {
-    subject: db.v("x"),
-    predicate: "friend",
-    object: db.v("y")
-  }, {
-    subject: db.v("y"),
-    predicate: "friend",
-    object: "davide"
-  }], function(err, results) {
-    // this will print "[{ x: 'daniele', y: 'marco' }]"
-    console.log(results);
-  });
-});
-```
-
-#### Triple Generation
-
-It also allows to generate a stream of triples, instead of a solution:
-```javascript
-  db.search([{
-    subject: db.v("a"),
-    predicate: "friend",
-    object: db.v("x")
-  }, {
-    subject: db.v("x"),
-    predicate: "friend",
-    object: db.v("y")
-  }, {
-    subject: db.v("y"),
-    predicate: "friend",
-    object: db.v("b")
-  }], {
-    materialized: {
-      subject: db.v("a"),
-      predicate: "friend-of-a-friend",
-      object: db.v("b")
+func main() {
+    // Open a database
+    db, err := levelgraph.Open("./mydb")
+    if err != nil {
+        log.Fatal(err)
     }
-  }, function(err, results) {
-    // this will print all the 'friend of a friend triples..'
-    // like so: {
-    //   subject: "lucio",
-    //   predicate: "friend-of-a-friend",
-    //   object: "daniele"
-    // }
-  });
-```
+    defer db.Close()
 
-#### Limit and Offset
-
-It is possible to implement pagination of search results by using `'offset'` and
-`'limit'`, like so:
-
-```javascript
-db.search([{
-    subject: db.v("a"),
-    predicate: "friend",
-    object: db.v("x")
-  }, {
-    subject: db.v("x"),
-    predicate: "friend",
-    object: db.v("y")
-  }], { limit: 4, offset: 2 }, function(err, list) {
-
-  console.log(list);
-});
-```
-
-### Filtering
-
-__LevelGraph__ supports filtering of triples when calling `get()` and solutions
-when calling `search()`, and streams are supported too.
-
-It is possible to filter the matching triples during a `get()`:
-
-```javascript
-db.get({
-    subject: 'matteo'
-  , predicate: 'friend'
-  , filter: function filter(triple) {
-      return triple.object !== 'daniele';
+    // Insert a triple
+    triple := levelgraph.NewTripleFromStrings("alice", "knows", "bob")
+    if err := db.Put(triple); err != nil {
+        log.Fatal(err)
     }
-}, function process(err, results) {
-  // results will not contain any triples that
-  // have 'daniele' as object
-});
-```
 
-Moreover, it is possible to filter the triples during a `search()`
-
-```javascript
-db.search({
-    subject: 'matteo'
-  , predicate: 'friend'
-  , object: db.v('x')
-  , filter: function filter(triple) {
-      return triple.object !== 'daniele';
+    // Query by subject
+    results, err := db.Get(&levelgraph.Pattern{
+        Subject: []byte("alice"),
+    })
+    if err != nil {
+        log.Fatal(err)
     }
-}, function process(err, solutions) {
-  // results will not contain any solutions that
-  // have { x: 'daniele' }
-});
-```
 
-Finally, __LevelGraph__ supports filtering full solutions:
-
-```javascript
-db.search({
-    subject: 'matteo'
-  , predicate: 'friend'
-  , object: db.v('x')
-}, {
-    filter: function filter(solution, callback) {
-      if (solution.x !== 'daniele') {
-        // confirm the solution
-        callback(null, solution);
-      } else {
-        // refute the solution
-        callback(null);
-      }
+    for _, t := range results {
+        fmt.Printf("%s %s %s\n", t.Subject, t.Predicate, t.Object)
     }
-}, function process(err, solutions) {
-  // results will not contain any solutions that
-  // have { x: 'daniele' }
-});
+}
 ```
 
-Thanks to solultion filtering, it is possible to implement a negation:
+## Features
 
-```javascript
-db.search({
-    subject: 'matteo'
-  , predicate: 'friend'
-  , object: db.v('x')
-}, {
-    filter: function filter(solution, callback) {
-      db.get({
-          subject: solution.x
-        , predicate: 'friend'
-        , object: 'marco'
-      }, function (err, results) {
-        if (err) {
-          callback(err);
-          return;
-        }
-        if (results.length > 0) {
-          // confirm the solution
-          callback(null, solution);
-        } else {
-          // refute the solution
-          callback();
-        }
-      });
+- **Hexastore Indexing**: Six indexes for every triple enable fast lookups by any combination of subject, predicate, and object
+- **Pattern Matching**: Query triples using flexible patterns with variables
+- **Search/Join**: Multi-pattern joins for complex graph queries
+- **Navigator API**: Fluent API for graph traversal
+- **Journalling**: Record all write operations for audit trails and replication
+- **Facets**: Attach properties to subjects, predicates, objects, or entire triples
+- **Binary Data Support**: Store arbitrary `[]byte` data in triples
+
+## API Reference
+
+### Opening a Database
+
+```go
+// Basic open
+db, err := levelgraph.Open("/path/to/db")
+
+// With options
+db, err := levelgraph.Open("/path/to/db",
+    levelgraph.WithJournal(),   // Enable journalling
+    levelgraph.WithFacets(),    // Enable facets
+)
+```
+
+### Triples
+
+Triples are the fundamental unit of data:
+
+```go
+// Create from byte slices
+triple := levelgraph.NewTriple([]byte("subject"), []byte("predicate"), []byte("object"))
+
+// Create from strings (convenience)
+triple := levelgraph.NewTripleFromStrings("alice", "knows", "bob")
+```
+
+### Put and Delete
+
+```go
+// Insert single triple
+err := db.Put(triple)
+
+// Insert multiple triples
+err := db.Put(t1, t2, t3)
+
+// Delete triple
+err := db.Del(triple)
+```
+
+### Get (Query)
+
+Query triples using patterns:
+
+```go
+// Get by subject
+results, err := db.Get(&levelgraph.Pattern{
+    Subject: []byte("alice"),
+})
+
+// Get by predicate and object
+results, err := db.Get(&levelgraph.Pattern{
+    Predicate: []byte("knows"),
+    Object:    []byte("bob"),
+})
+
+// With limit and offset
+results, err := db.Get(&levelgraph.Pattern{
+    Subject: []byte("alice"),
+    Limit:   10,
+    Offset:  5,
+})
+
+// With filter
+results, err := db.Get(&levelgraph.Pattern{
+    Subject: []byte("alice"),
+    Filter: func(t *levelgraph.Triple) bool {
+        return string(t.Object) != "eve"
+    },
+})
+
+// Reverse order
+results, err := db.Get(&levelgraph.Pattern{
+    Subject: []byte("alice"),
+    Reverse: true,
+})
+```
+
+### Search (Join)
+
+Perform multi-pattern joins using variables:
+
+```go
+// Find friends of friends
+results, err := db.Search([]*levelgraph.Pattern{
+    {
+        Subject:   []byte("alice"),
+        Predicate: []byte("knows"),
+        Object:    levelgraph.V("x"),  // Variable
+    },
+    {
+        Subject:   levelgraph.V("x"),
+        Predicate: []byte("knows"),
+        Object:    levelgraph.V("y"),
+    },
+}, nil)
+
+// Each result is a Solution map[string][]byte
+for _, sol := range results {
+    fmt.Printf("x=%s, y=%s\n", sol["x"], sol["y"])
+}
+
+// With options
+results, err := db.Search(patterns, &levelgraph.SearchOptions{
+    Limit:  10,
+    Offset: 0,
+    Filter: func(s levelgraph.Solution) bool {
+        return string(s["x"]) != "eve"
+    },
+})
+```
+
+### Navigator API
+
+Fluent API for graph traversal:
+
+```go
+// Find friends of alice
+values, err := db.Nav("alice").
+    ArchOut("knows").
+    Values()
+
+// Find who knows alice
+values, err := db.Nav("alice").
+    ArchIn("knows").
+    Values()
+
+// Chain multiple traversals
+values, err := db.Nav("alice").
+    ArchOut("knows").       // alice -> knows -> ?
+    ArchOut("knows").       // ? -> knows -> ?
+    Values()
+
+// Name intermediate vertices
+solutions, err := db.Nav("alice").
+    ArchOut("knows").
+    As("friend").
+    ArchOut("likes").
+    As("liked").
+    Solutions()
+
+// Bind to specific value
+values, err := db.Nav("alice").
+    ArchOut("knows").
+    Bind("bob").            // Must match "bob"
+    ArchOut("knows").
+    Values()
+
+// Check existence
+exists, err := db.Nav("alice").ArchOut("knows").Exists()
+
+// Count results
+count, err := db.Nav("alice").ArchOut("knows").Count()
+
+// Clone navigator for branching
+nav := db.Nav("alice").ArchOut("knows")
+nav1 := nav.Clone().ArchOut("likes")
+nav2 := nav.Clone().ArchOut("follows")
+```
+
+### Iterators
+
+For large result sets, use iterators:
+
+```go
+// Triple iterator
+iter, err := db.GetIterator(&levelgraph.Pattern{Subject: []byte("alice")})
+if err != nil {
+    log.Fatal(err)
+}
+defer iter.Release()
+
+for iter.Next() {
+    triple, err := iter.Triple()
+    if err != nil {
+        log.Fatal(err)
     }
-}, function process(err, solutions) {
-  // results will not contain any solutions that
-  // do not satisfy the filter
-});
+    fmt.Println(triple)
+}
+
+// Search iterator
+iter, err := db.SearchIterator(patterns, nil)
+if err != nil {
+    log.Fatal(err)
+}
+defer iter.Close()
+
+for iter.Next() {
+    solution := iter.Solution()
+    fmt.Println(solution)
+}
 ```
 
-The heavier method is filtering solutions, so we recommend filtering the
-triples whenever possible.
+### Journalling
 
-### Putting and Deleting through Streams
+When enabled, all write operations are recorded:
 
-It is also possible to `put` or `del` triples from the store using a `Stream2`
-interface:
+```go
+// Open with journalling
+db, err := levelgraph.Open("/path/to/db", levelgraph.WithJournal())
 
-```javascript
-var t1 = { subject: "a", predicate: "b", object: "c" };
-var t2 = { subject: "a", predicate: "b", object: "d" };
-var stream = db.putStream();
+// Get journal entries
+entries, err := db.GetJournalEntries(time.Time{})  // All entries
+entries, err := db.GetJournalEntries(since)        // Entries after timestamp
 
-stream.write(t1);
-stream.end(t2);
+// Count entries
+count, err := db.JournalCount(time.Time{})
 
-stream.on("close", function() {
-  // do something, the writes are done
-});
+// Trim old entries
+trimmed, err := db.Trim(before)
+
+// Export and trim
+exported, err := db.TrimAndExport(before, archiveDB)
+
+// Replay journal to another database
+replayed, err := db.ReplayJournal(after, targetDB)
 ```
 
-### Generate batch operations
+### Facets
 
-You can also generate a `put` and `del` batch, so you can manage the batching
-yourself:
+Attach properties to graph components:
 
-```javascript
-var triple = { subject: "a", predicate: "b", object: "c" };
+```go
+// Open with facets
+db, err := levelgraph.Open("/path/to/db", levelgraph.WithFacets())
 
-// Produces a batch of put operations
-var putBatch = db.generateBatch(triple);
+// Component facets (on subjects, predicates, or objects)
+err = db.SetFacet(levelgraph.FacetSubject, []byte("alice"), []byte("age"), []byte("30"))
+value, err := db.GetFacet(levelgraph.FacetSubject, []byte("alice"), []byte("age"))
+facets, err := db.GetFacets(levelgraph.FacetSubject, []byte("alice"))
+err = db.DelFacet(levelgraph.FacetSubject, []byte("alice"), []byte("age"))
 
-// Produces a batch of del operations
-var delBatch = db.generateBatch(triple, 'del');
+// Triple facets (on entire triples)
+triple := levelgraph.NewTripleFromStrings("alice", "knows", "bob")
+err = db.SetTripleFacet(triple, []byte("since"), []byte("2020"))
+value, err := db.GetTripleFacet(triple, []byte("since"))
+facets, err := db.GetTripleFacets(triple)
+err = db.DelTripleFacet(triple, []byte("since"))
+err = db.DelAllTripleFacets(triple)
 ```
 
-### Generate level-read-stream query
+## Binary Data Support
 
-Return the leveldb query for the given triple.
+LevelGraph stores all data as `[]byte`, supporting arbitrary binary data:
 
-```javascript
-var { ValueStream } = require("level-read-stream");
-var query           = db.createQuery({ predicate: "b"});
+```go
+// Binary data in triples
+subject := []byte{0x00, 0x01, 0x02}
+predicate := []byte("hasData")
+object := []byte{0xAA, 0xBB, 0xCC}
 
-var stream = new ValueStream(leveldb, query);
+triple := levelgraph.NewTriple(subject, predicate, object)
+db.Put(triple)
 ```
 
-## Navigator API
+## Benchmarks
 
-The Navigator API is a fluent API for LevelGraph, loosely inspired by
-[Gremlin](http://markorodriguez.com/2011/06/15/graph-pattern-matching-with-gremlin-1-1/)
-It allows to specify how to search our graph in a much more compact way and
-navigate between vertexes.
+Run benchmarks:
 
-Here is an example, using the same dataset as before:
-
-```javascript
-db.nav("matteo").archIn("friend").archOut("friend").
-  solutions(function(err, results) {
-  // prints:
-  // [ { x0: 'daniele', x1: 'marco' },
-  //   { x0: 'daniele', x1: 'matteo' },
-  //   { x0: 'lucio', x1: 'marco' },
-  //   { x0: 'lucio', x1: 'matteo' } ]
-  console.log(results);
-});
+```bash
+go test -bench=. -benchmem
 ```
 
-The above example match the same triples of:
+Example results:
 
-```javascript
-db.search([{
-  subject: db.v("x0"),
-  predicate: 'friend',
-  object: 'matteo'
-}, {
-  subject: db.v("x0"),
-  predicate: 'friend',
-  object: db.v("x1")
-}], function(err, results) {
-  // prints:
-  // [ { x0: 'daniele', x1: 'marco'  },
-  //   { x0: 'daniele', x1: 'matteo' },
-  //   { x0: 'lucio'  , x1: 'marco'  },
-  //   { x0: 'lucio'  , x1: 'matteo' } ]
-  console.log(results);
-});
+```
+BenchmarkPut-24              107331    10462 ns/op    4261 B/op    33 allocs/op
+BenchmarkGet-24               49762    24005 ns/op    7467 B/op   171 allocs/op
+BenchmarkSearch-24            79240    15024 ns/op    6696 B/op   122 allocs/op
+BenchmarkSearchJoin-24        10000   103245 ns/op   58649 B/op   792 allocs/op
+BenchmarkNavigator-24          9805   106973 ns/op   60318 B/op   831 allocs/op
 ```
 
-It allows to see just the last reached vertex:
+## Testing
 
-```javascript
-    db.nav("matteo").archIn("friend").archOut("friend").
-      values(function(err, results) {
-      // prints [ 'marco', 'matteo' ]
-      console.log(results);
-    });
+```bash
+go test ./...
 ```
-
-Variable names can also be specified, like so:
-
-```javascript
-db.nav("marco").archIn("friend").as("a").archOut("friend").archOut("friend").as("a").
-      solutions(function(err, friends) {
-
-  console.log(friends); // will print [{ a: "daniele" }]
-});
-```
-
-Variables can also be bound to a specific value, like so:
-
-```javascript
-db.nav("matteo").archIn("friend").bind("lucio").archOut("friend").bind("marco").
-      values(function(err, friends) {
-  console.log(friends); // this will print ['marco']
-});
-```
-
-A materialized search can also be produced, like so:
-
-```javascript
-db.nav("matteo").archOut("friend").bind("lucio").archOut("friend").bind("marco").
-      triples({:
-        materialized: {
-        subject: db.v("a"),
-        predicate: "friend-of-a-friend",
-        object: db.v("b")
-      }
-    }, function(err, results) {
-
-  // this will return all the 'friend of a friend triples..'
-  // like so: {
-  //   subject: "lucio",
-  //   predicate: "friend-of-a-friend",
-  //   object: "daniele"
-  // }
-
-  console.log(results);
-});
-```
-
-It is also possible to change the current vertex:
-
-```javascript
-db.nav("marco").archIn("friend").as("a").go("matteo").archOut("friend").as("b").
-      solutions(function(err, solutions) {
-
-   //  solutions is: [{
-   //    a: "daniele",
-   //    b: "daniele"
-   //   }, {
-   //     a: "lucio",
-   //     b: "daniele"
-   //   }]
-
-});
-```
-
-## Plugin integration
-
-LevelGraph allows to leverage the full power of all [level][gh:level/level]
-plugins.
-
-Initializing a database with plugin support is very easy:
-
-```javascript
-var { Level }  = require("level");
-var levelgraph = require("levelgraph");
-var db         = levelgraph(new Level("yourdb"));
-```
-
-### Usage with sublevels
-
-An extremely powerful usage of LevelGraph is to partition your LevelDB using
-sublevels, somewhat resembling tables in a relational database.
-
-```javascript
-var { Level }  = require("level");
-var levelgraph = require("levelgraph");
-var db         = new Level("yourdb");
-var graph      = levelgraph(db.sublevel('graph'));
-```
-
-## Browser usage
-
-You can use [browserify](https://browserify.org/) or
-[esbuild](https://esbuild.github.io/) to bundle your module and all it's
-dependencies, including levelgraph, into a single script-tag friendly js file
-for use in webpages. For the convenience of people unfamiliar with browserify or
-esbuild, a pre-bundled version of levelgraph is included in the build folder in
-this repository.
-
-Simply `require("levelgraph")` in your browser modules:
-
-```javascript
-var levelgraph = require("levelgraph");
-var { Level }  = require("level");
-
-var db = levelgraph(new Level("yourdb"));
-```
-
-### Testling
-
-Follow the [Testling install instructions](https://github.com/substack/testling#install) and run `testling` in the levelgraph directory to run the test suite against a headless browser using level.js
-
-## RDF support
-
-__LevelGraph__ does not support out of the box loading serialized RDF or storing it. Such functionality is provided by extensions:
-* [LevelGraph-N3](https://github.com/levelgraph/levelgraph-n3) - __N3/Turtle__
-* [LevelGraph-JSONLD](https://github.com/levelgraph/levelgraph-jsonld) - __JSON-LD__
-
-## Extensions
-
-You can use multiple extensions at the same time. Just check if one depends on another one
-to nest them in correct order! *(LevelGraph-N3 and LevelGraph-JSONLD are
-independent)*
-
-```javascript
-var lg       = require('levelgraph');
-var lgN3     = require('levelgraph-n3');
-var lgJSONLD = require('levelgraph-jsonld');
-
-var db = lgJSONLD(lgN3(lg("yourdb")));
-// gives same result as
-var db = lgN3(lgJSONLD(lg("yourdb")));
-```
-
-## TODO
-
-There are plenty of things that this library is missing.
-If you feel you want a feature added, just do it and __submit a
-pull-request__.
-
-Here are some ideas:
-
-* [x] Return the matching triples in the search results.
-* [x] Support for Query Planning in search.
-* [x] Added a Sort-Join algorithm.
-* [ ] Add more database operators (grouping, filtering).
-* [x] Browser support
-  [#10](https://github.com/levelgraph/levelgraph/issues/10)
-* [ ] Live searches
-  [#3](https://github.com/levelgraph/node-levelgraph/issues/3)
-* Extensions
-  * [ ] RDFa
-  * [ ] RDF/XML
-  * [ ] Microdata
-
-## Contributing
-
-LevelGraph is an **OPEN Open Source Project**. This means that:
-
-> Individuals making significant and valuable contributions are given commit-access to the project to contribute as they see fit. This project is more like an open wiki than a standard guarded open source project.
-
-See the [CONTRIBUTING.md](https://github.com/levelgraph/levelgraph/blob/master/CONTRIBUTING.md) file for more details.
 
 ## Credits
 
-*LevelGraph builds on the excellent work on both the level community and the
-LevelDB and Snappy teams from Google and additional contributors. LevelDB and
-Snappy are both issued under the
-[New BSD Licence](http://opensource.org/licenses/BSD-3-Clause).*
+This Go port builds on the excellent work of the original JavaScript LevelGraph
+by Matteo Collina and contributors.
 
-## Contributors
+LevelGraph builds on LevelDB from Google, accessed via
+[goleveldb](https://github.com/syndtr/goleveldb).
 
-LevelGraph is only possible due to the excellent work of the following
-contributors:
+## License
 
-| Name           | Github                          | Twitter/X                         |
-|:-------------- | ------------------------------- | --------------------------------- |
-| Matteo Collina | [mcollina][gh:mcollina]         | [@matteocollina][x:matteocollina] |
-| Jeremy Taylor  | [jez0990][gh:jez0990]           |                                   |
-| Elf Pavlik     | [elf-pavlik][gh:elf-pavlik]     | [@elfpavlik][x:elfpavlik]         |
-| Riceball LEE   | [snowyu][gh:snowyu]             |                                   |
-| Brian Woodward | [doowb][gh:doowb]               | [@doowb][x:doowb]                 |
-| Leon Chen      | [transcranial][gh:transcranial] | [@transcranial][x:transcranial]   |
-| Yersa Nordman  | [finwo][gh:finwo]               |                                   |
-
-## LICENSE - "MIT License"
+MIT License - see [LICENSE](LICENSE) file.
 
 Copyright (c) 2013-2024 Matteo Collina and LevelGraph Contributors
-
-Permission is hereby granted, free of charge, to any person
-obtaining a copy of this software and associated documentation
-files (the "Software"), to deal in the Software without
-restriction, including without limitation the rights to use,
-copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the
-Software is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
-
-[http:playground]: http://wileylabs.github.io/levelgraph-playground
-[gh:google/leveldb]: https://github.com/google/leveldb
-[gh:level/level]: https://github.com/level/level
-[gh:doowb]: https://github.com/doowb
-[gh:elf-pavlik]: https://github.com/elf-pavlik
-[gh:finwo]: https://github.com/finwo
-[gh:jez0990]: https://github.com/jez0990
-[gh:mcollina]: https://github.com/mcollina
-[gh:snowyu]: https://github.com/snowyu
-[gh:transcranial]: https://github.com/transcranial
-[x:doowb]: https://twitter.com/doowb
-[x:elfpavlik]: https://twitter.com/elfpavlik
-[x:matteocollina]: https://twitter.com/matteocollina
-[x:transcranial]: https://twitter.com/transcranial
+Copyright (c) 2024 LevelGraph Go Contributors

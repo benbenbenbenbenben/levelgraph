@@ -1,22 +1,37 @@
-lib-cov
-*.seed
-*.log
-*.csv
-*.dat
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Coverage output
 *.out
-*.pid
-*.gz
+coverage.out
 
-pids
-logs
-results
+# Go build cache
+.go-build/
 
-node_modules
-npm-debug.log
-.idea
-docs
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
 .DS_Store
-coverage
-db_test
+Thumbs.db
 
-package-lock.json
+# Test databases
+db_test/
+*.db/
+
+# Logs
+*.log
