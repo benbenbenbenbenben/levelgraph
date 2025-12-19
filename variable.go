@@ -24,6 +24,8 @@
 
 package levelgraph
 
+import "bytes"
+
 // Variable represents a named variable used in query patterns for binding.
 // When searching, variables can match any value and the matches are
 // collected into a Solution map.
@@ -67,7 +69,7 @@ func (v *Variable) IsBindable(solution Solution, value []byte) bool {
 	if !exists {
 		return true
 	}
-	return bytesEqual(existing, value)
+	return bytes.Equal(existing, value)
 }
 
 // GetValue returns the bound value if this variable is bound, or nil if unbound.
@@ -97,20 +99,7 @@ func (s Solution) Equal(other Solution) bool {
 		return false
 	}
 	for k, v := range s {
-		if !bytesEqual(v, other[k]) {
-			return false
-		}
-	}
-	return true
-}
-
-// bytesEqual compares two byte slices for equality.
-func bytesEqual(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
+		if !bytes.Equal(v, other[k]) {
 			return false
 		}
 	}

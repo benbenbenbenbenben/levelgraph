@@ -34,6 +34,7 @@ import (
 )
 
 func TestTriple(t *testing.T) {
+	t.Parallel()
 	t.Run("NewTriple", func(t *testing.T) {
 		triple := NewTriple([]byte("a"), []byte("b"), []byte("c"))
 		if string(triple.Subject) != "a" {
@@ -84,6 +85,7 @@ func TestTriple(t *testing.T) {
 }
 
 func TestVariable(t *testing.T) {
+	t.Parallel()
 	t.Run("V constructor", func(t *testing.T) {
 		v := V("x")
 		if v.Name != "x" {
@@ -139,6 +141,7 @@ func TestVariable(t *testing.T) {
 }
 
 func TestEscape(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    string
 		expected string
@@ -167,6 +170,7 @@ func TestEscape(t *testing.T) {
 }
 
 func TestGenKey(t *testing.T) {
+	t.Parallel()
 	triple := NewTripleFromStrings("subject", "predicate", "object")
 
 	t.Run("SPO index", func(t *testing.T) {
@@ -187,6 +191,7 @@ func TestGenKey(t *testing.T) {
 }
 
 func TestGenKeys(t *testing.T) {
+	t.Parallel()
 	triple := NewTripleFromStrings("a", "b", "c")
 	keys := GenKeys(triple)
 
@@ -196,6 +201,7 @@ func TestGenKeys(t *testing.T) {
 }
 
 func TestPattern(t *testing.T) {
+	t.Parallel()
 	t.Run("NewPattern with strings", func(t *testing.T) {
 		p := NewPattern("a", "b", "c")
 		if string(p.GetConcreteValue("subject")) != "a" {
@@ -256,6 +262,7 @@ func TestPattern(t *testing.T) {
 }
 
 func TestPossibleIndexes(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		fields   []string
 		expected int
@@ -278,27 +285,22 @@ func TestPossibleIndexes(t *testing.T) {
 func setupTestDB(t *testing.T) (*DB, func()) {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "levelgraph-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-
+	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")
 	db, err := Open(dbPath)
 	if err != nil {
-		os.RemoveAll(dir)
 		t.Fatalf("failed to open database: %v", err)
 	}
 
 	cleanup := func() {
 		db.Close()
-		os.RemoveAll(dir)
 	}
 
 	return db, cleanup
 }
 
 func TestDB_PutAndGet(t *testing.T) {
+	t.Parallel()
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
@@ -365,6 +367,7 @@ func TestDB_PutAndGet(t *testing.T) {
 }
 
 func TestDB_Del(t *testing.T) {
+	t.Parallel()
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
@@ -394,6 +397,7 @@ func TestDB_Del(t *testing.T) {
 }
 
 func TestDB_MultipleTriples(t *testing.T) {
+	t.Parallel()
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
@@ -427,6 +431,7 @@ func TestDB_MultipleTriples(t *testing.T) {
 }
 
 func TestDB_Limit(t *testing.T) {
+	t.Parallel()
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
@@ -444,6 +449,7 @@ func TestDB_Limit(t *testing.T) {
 }
 
 func TestDB_Offset(t *testing.T) {
+	t.Parallel()
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
@@ -461,6 +467,7 @@ func TestDB_Offset(t *testing.T) {
 }
 
 func TestDB_Filter(t *testing.T) {
+	t.Parallel()
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
@@ -485,6 +492,7 @@ func TestDB_Filter(t *testing.T) {
 }
 
 func TestDB_SpecialCharacters(t *testing.T) {
+	t.Parallel()
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
@@ -525,11 +533,8 @@ func TestDB_SpecialCharacters(t *testing.T) {
 }
 
 func TestDB_Options(t *testing.T) {
-	dir, err := os.MkdirTemp("", "levelgraph-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(dir)
+	t.Parallel()
+	dir := t.TempDir()
 
 	dbPath := filepath.Join(dir, "test.db")
 
@@ -551,6 +556,7 @@ func TestDB_Options(t *testing.T) {
 }
 
 func TestGenerateBatch(t *testing.T) {
+	t.Parallel()
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
@@ -589,6 +595,7 @@ func setupFOAFData(db *DB) error {
 }
 
 func TestSearch_SinglePattern(t *testing.T) {
+	t.Parallel()
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
@@ -633,6 +640,7 @@ func TestSearch_SinglePattern(t *testing.T) {
 }
 
 func TestSearch_Join(t *testing.T) {
+	t.Parallel()
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
@@ -752,6 +760,7 @@ func TestSearch_Join(t *testing.T) {
 }
 
 func TestSearch_Limit(t *testing.T) {
+	t.Parallel()
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
@@ -780,6 +789,7 @@ func TestSearch_Limit(t *testing.T) {
 }
 
 func TestSearch_Offset(t *testing.T) {
+	t.Parallel()
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 

@@ -24,6 +24,8 @@
 
 package levelgraph
 
+import "log/slog"
+
 // JoinAlgorithm represents the algorithm used for joining patterns in searches.
 type JoinAlgorithm string
 
@@ -34,7 +36,6 @@ const (
 	JoinAlgorithmSort JoinAlgorithm = "sort"
 )
 
-// Options configures the behavior of a LevelGraph database.
 type Options struct {
 	// JournalEnabled enables the journalling feature for write operations.
 	JournalEnabled bool
@@ -45,17 +46,21 @@ type Options struct {
 	// JoinAlgorithm specifies which join algorithm to use for searches.
 	// Defaults to JoinAlgorithmSort.
 	JoinAlgorithm JoinAlgorithm
+
+	// Logger is an optional structured logger for debug output.
+	// When nil, no logging is performed.
+	Logger *slog.Logger
 }
 
 // Option is a function that configures Options.
 type Option func(*Options)
 
-// defaultOptions returns the default configuration.
 func defaultOptions() *Options {
 	return &Options{
 		JournalEnabled: false,
 		FacetsEnabled:  false,
 		JoinAlgorithm:  JoinAlgorithmSort,
+		Logger:         nil,
 	}
 }
 
@@ -101,4 +106,12 @@ func WithBasicJoin() Option {
 // WithSortJoin is a convenience option for using the sort-merge join algorithm.
 func WithSortJoin() Option {
 	return WithJoinAlgorithm(JoinAlgorithmSort)
+}
+
+// WithLogger sets an optional structured logger for debug output.
+// Pass nil to disable logging (the default).
+func WithLogger(l *slog.Logger) Option {
+	return func(o *Options) {
+		o.Logger = l
+	}
 }

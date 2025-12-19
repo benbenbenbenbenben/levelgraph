@@ -54,6 +54,7 @@ package levelgraph
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/syndtr/goleveldb/leveldb"
@@ -83,7 +84,7 @@ func Open(path string, opts ...Option) (*DB, error) {
 
 	ldb, err := leveldb.OpenFile(path, &opt.Options{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("levelgraph: open %s: %w", path, err)
 	}
 
 	return &DB{
@@ -161,7 +162,14 @@ func (db *DB) Put(triples ...*Triple) error {
 		}
 	}
 
-	return db.ldb.Write(batch, nil)
+	if err := db.ldb.Write(batch, nil); err != nil {
+		return err
+	}
+
+	if db.options.Logger != nil {
+		db.options.Logger.Debug("put", "count", len(triples))
+	}
+	return nil
 }
 
 // Del deletes one or more triples from the database.
@@ -197,7 +205,14 @@ func (db *DB) Del(triples ...*Triple) error {
 		}
 	}
 
-	return db.ldb.Write(batch, nil)
+	if err := db.ldb.Write(batch, nil); err != nil {
+		return err
+	}
+
+	if db.options.Logger != nil {
+		db.options.Logger.Debug("del", "count", len(triples))
+	}
+	return nil
 }
 
 // Get retrieves triples matching the given pattern.
@@ -225,7 +240,7 @@ func (db *DB) getUnlocked(pattern *Pattern) ([]*Triple, error) {
 	for iter.Next() {
 		triple, err := iter.Triple()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("levelgraph: parse triple: %w", err)
 		}
 		results = append(results, triple)
 	}
@@ -293,7 +308,7 @@ type BatchOp struct {
 func (db *DB) generateBatchOps(triple *Triple, action string) ([]BatchOp, error) {
 	value, err := json.Marshal(triple)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("levelgraph: marshal triple: %w", err)
 	}
 
 	keys := GenKeys(triple)

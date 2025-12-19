@@ -24,6 +24,8 @@
 
 package levelgraph
 
+import "bytes"
+
 // Pattern represents a query pattern that can match triples.
 // Each field can be:
 //   - nil: matches any value (wildcard)
@@ -187,17 +189,17 @@ func (p *Pattern) ToTriple() *Triple {
 // Matches returns true if the given triple matches this pattern.
 func (p *Pattern) Matches(triple *Triple) bool {
 	if s := p.GetConcreteValue("subject"); s != nil {
-		if !bytesEqual(s, triple.Subject) {
+		if !bytes.Equal(s, triple.Subject) {
 			return false
 		}
 	}
 	if pr := p.GetConcreteValue("predicate"); pr != nil {
-		if !bytesEqual(pr, triple.Predicate) {
+		if !bytes.Equal(pr, triple.Predicate) {
 			return false
 		}
 	}
 	if o := p.GetConcreteValue("object"); o != nil {
-		if !bytesEqual(o, triple.Object) {
+		if !bytes.Equal(o, triple.Object) {
 			return false
 		}
 	}
@@ -251,7 +253,7 @@ func (p *Pattern) BindTriple(solution Solution, triple *Triple) Solution {
 			return nil
 		}
 	} else if s := p.GetConcreteValue("subject"); s != nil {
-		if !bytesEqual(s, triple.Subject) {
+		if !bytes.Equal(s, triple.Subject) {
 			return nil
 		}
 	}
@@ -263,7 +265,7 @@ func (p *Pattern) BindTriple(solution Solution, triple *Triple) Solution {
 			return nil
 		}
 	} else if pr := p.GetConcreteValue("predicate"); pr != nil {
-		if !bytesEqual(pr, triple.Predicate) {
+		if !bytes.Equal(pr, triple.Predicate) {
 			return nil
 		}
 	}
@@ -275,7 +277,7 @@ func (p *Pattern) BindTriple(solution Solution, triple *Triple) Solution {
 			return nil
 		}
 	} else if o := p.GetConcreteValue("object"); o != nil {
-		if !bytesEqual(o, triple.Object) {
+		if !bytes.Equal(o, triple.Object) {
 			return nil
 		}
 	}

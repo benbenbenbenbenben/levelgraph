@@ -80,14 +80,16 @@ func (t *Triple) String() string {
 	return string(t.Subject) + " " + string(t.Predicate) + " " + string(t.Object)
 }
 
+// tripleJSON is used for JSON marshaling/unmarshaling with base64 support
+type tripleJSON struct {
+	Subject   string `json:"subject"`
+	Predicate string `json:"predicate"`
+	Object    string `json:"object"`
+}
+
 // MarshalJSON implements json.Marshaler for Triple.
 // Uses base64 encoding for binary data to preserve all byte values.
 func (t *Triple) MarshalJSON() ([]byte, error) {
-	type tripleJSON struct {
-		Subject   string `json:"subject"`
-		Predicate string `json:"predicate"`
-		Object    string `json:"object"`
-	}
 	return json.Marshal(tripleJSON{
 		Subject:   base64.StdEncoding.EncodeToString(t.Subject),
 		Predicate: base64.StdEncoding.EncodeToString(t.Predicate),
@@ -97,11 +99,6 @@ func (t *Triple) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements json.Unmarshaler for Triple.
 func (t *Triple) UnmarshalJSON(data []byte) error {
-	type tripleJSON struct {
-		Subject   string `json:"subject"`
-		Predicate string `json:"predicate"`
-		Object    string `json:"object"`
-	}
 	var tj tripleJSON
 	if err := json.Unmarshal(data, &tj); err != nil {
 		return err

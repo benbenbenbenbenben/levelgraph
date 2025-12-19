@@ -359,5 +359,5 @@ LevelGraph builds on LevelDB from Google, accessed via
 
 MIT License - see [LICENSE](LICENSE) file.
 
-Copyright (c) 2013-2024 Matteo Collina and LevelGraph Contributors
-Copyright (c) 2024 LevelGraph Go Contributors
+Copyright (c) 2013-2025 Matteo Collina and LevelGraph Contributors
+Copyright (c) 2025 Benjamin Babik and LevelGraph Go Contributors
