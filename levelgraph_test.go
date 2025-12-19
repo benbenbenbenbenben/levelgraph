@@ -2635,3 +2635,108 @@ func TestOpenWithDB(t *testing.T) {
 
 	db.Close()
 }
+
+func TestValidateTriple_EdgeCases(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Nil triple
+	err := db.Put(nil)
+	if err != ErrInvalidTriple {
+		t.Errorf("expected ErrInvalidTriple for nil triple, got %v", err)
+	}
+
+	// Triple with nil subject
+	err = db.Put(&Triple{Subject: nil, Predicate: []byte("p"), Object: []byte("o")})
+	if err != ErrInvalidTriple {
+		t.Errorf("expected ErrInvalidTriple for nil subject, got %v", err)
+	}
+
+	// Triple with nil predicate
+	err = db.Put(&Triple{Subject: []byte("s"), Predicate: nil, Object: []byte("o")})
+	if err != ErrInvalidTriple {
+		t.Errorf("expected ErrInvalidTriple for nil predicate, got %v", err)
+	}
+
+	// Triple with nil object
+	err = db.Put(&Triple{Subject: []byte("s"), Predicate: []byte("p"), Object: nil})
+	if err != ErrInvalidTriple {
+		t.Errorf("expected ErrInvalidTriple for nil object, got %v", err)
+	}
+}
+
+func TestNewPattern_EdgeCases(t *testing.T) {
+	// Empty byte slice treated as nil
+	p := NewPattern([]byte{}, "pred", "obj")
+	if p.Subject != nil {
+		t.Error("empty []byte should be treated as nil")
+	}
+
+	// Empty string treated as nil
+	p = NewPattern("", "pred", "obj")
+	if p.Subject != nil {
+		t.Error("empty string should be treated as nil")
+	}
+
+	// Bool values
+	p = NewPattern(true, false, "obj")
+	if string(p.Subject.([]byte)) != "true" {
+		t.Errorf("expected 'true', got '%s'", p.Subject)
+	}
+	if string(p.Predicate.([]byte)) != "false" {
+		t.Errorf("expected 'false', got '%s'", p.Predicate)
+	}
+
+	// Unknown type defaults to nil
+	p = NewPattern(123, "pred", "obj")
+	if p.Subject != nil {
+		t.Error("unknown type should be treated as nil")
+	}
+}
+
+func TestTriple_Equal_NilCases(t *testing.T) {
+	triple := NewTripleFromStrings("a", "b", "c")
+
+	// Comparing with nil
+	if triple.Equal(nil) {
+		t.Error("triple should not equal nil")
+	}
+}
+
+func TestPattern_Matches_EdgeCases(t *testing.T) {
+	triple := NewTripleFromStrings("alice", "knows", "bob")
+
+	// Pattern with no concrete values matches everything
+	p := &Pattern{}
+	if !p.Matches(triple) {
+		t.Error("empty pattern should match any triple")
+	}
+
+	// Pattern with subject only
+	p = &Pattern{Subject: []byte("alice")}
+	if !p.Matches(triple) {
+		t.Error("pattern with matching subject should match")
+	}
+
+	p = &Pattern{Subject: []byte("charlie")}
+	if p.Matches(triple) {
+		t.Error("pattern with non-matching subject should not match")
+	}
+
+	// Pattern with predicate only
+	p = &Pattern{Predicate: []byte("knows")}
+	if !p.Matches(triple) {
+		t.Error("pattern with matching predicate should match")
+	}
+
+	// Pattern with object only
+	p = &Pattern{Object: []byte("bob")}
+	if !p.Matches(triple) {
+		t.Error("pattern with matching object should match")
+	}
+
+	p = &Pattern{Object: []byte("charlie")}
+	if p.Matches(triple) {
+		t.Error("pattern with non-matching object should not match")
+	}
+}
