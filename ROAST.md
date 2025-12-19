@@ -14,19 +14,15 @@ But don't worry. I found things. I _always_ find things.
 
 ## 🎭 Let's Get Into It
 
-### 1. "It's Not a Bug, It's a Feature From JavaScript"
+### 1. "It's Not a Bug, It's a Feature From JavaScript" (IMPROVED)
 
 ```go
 case bool:
-    if !val {
-        return []byte("false")
-    }
-    return []byte("true")
+    // Convert boolean to its string representation using strconv for clarity
+    return []byte(strconv.FormatBool(val))
 ```
 
-Ah yes, the ancient art of converting booleans to strings. In JavaScript, this happens by accident. In Go, you made a _conscious choice_ to bring this chaos with you. Did you miss `JSON.stringify()` that much?
-
-When historians ask "how did the JavaScript-to-Go pipeline poison our codebase?", we'll point them to this exact line.
+The explicit magic strings are gone! Now we use `strconv.FormatBool` like proper grown-ups. It still converts booleans to strings, but at least it's using stdlib. Progress! 🎉
 
 ---
 
@@ -130,15 +126,15 @@ You clearly know what you're doing.
 
 ## 📊 Final Score
 
-| Crime                        | Severity | Verdict                            |
-| ---------------------------- | -------- | ---------------------------------- |
-| `interface{}` abuse          | Medium   | Time served                        |
-| Re-inventing stdlib          | Low      | ~~Community service~~ FIXED        |
-| Zone.Identifier in git       | High     | ~~Immediate deportation~~ FIXED    |
-| "For now" iterator           | Medium   | ~~Probation~~ RESOLVED             |
-| No Context support           | Medium   | ~~Mandatory training~~ RESOLVED    |
-| No logging                   | Low      | ~~Written warning~~ FIXED          |
-| Duplicate struct definitions | Low      | ~~Eye rolls~~ FIXED                |
+| Crime                        | Severity | Verdict                         |
+| ---------------------------- | -------- | ------------------------------- |
+| `interface{}` abuse          | Medium   | Time served                     |
+| Re-inventing stdlib          | Low      | ~~Community service~~ FIXED     |
+| Zone.Identifier in git       | High     | ~~Immediate deportation~~ FIXED |
+| "For now" iterator           | Medium   | ~~Probation~~ RESOLVED          |
+| No Context support           | Medium   | ~~Mandatory training~~ RESOLVED |
+| No logging                   | Low      | ~~Written warning~~ FIXED       |
+| Duplicate struct definitions | Low      | ~~Eye rolls~~ FIXED             |
 
 **Overall Roast Level**: 🔥 (1/5 flames - down from 3/5!)
 

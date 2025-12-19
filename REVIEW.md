@@ -131,15 +131,15 @@ Yet `variable.go` reimplements `bytesEqual`. Inconsistent use of stdlib.
 ### The Concerning
 
 1. **No input validation on paths**: (RESOLVED) `Open()` now validates that a path is provided.
-2. **Unbounded result sets** — No default limit on Get/Search operations
+2. **Unbounded result sets**: (RESOLVED) `WithDefaultLimit()` option now available for bounded queries.
 3. **Journal counter is global**: (RESOLVED) Moved to `DB` struct instance to support multiple databases safely.
-4. **No graceful shutdown** — No way to drain pending operations before close
+4. **No graceful shutdown**: (RESOLVED) `CloseGracefully(ctx)` method added for draining pending operations.
 
 ### The Nitpicks
 
-1. **Copyright dates inconsistent** — Some files say "2024", LICENSE says "2025"
+1. **Copyright dates inconsistent**: (FIXED) LICENSE now says "2013-2025" matching README.
 2. **README benchmark numbers look stale** — Consider adding `go generate` for benchmark updates
-3. **No Makefile** — Modern Go projects often include one for common operations
+3. **No Makefile**: (RESOLVED)
 
 ---
 

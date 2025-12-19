@@ -12,14 +12,14 @@ LevelGraph is a well-designed Go port of the original JavaScript LevelGraph, imp
 
 **Overall Grade**: **A-** (Upgraded from B+ after recent fixes)
 
-| Category                 | Score | Notes                                       |
-| ------------------------ | ----- | ------------------------------------------- |
-| Structure & Organization | A     | Flat, logical Go package layout             |
-| Code Patterns            | A     | Functional options, streaming iterators     |
-| Type Safety              | B+    | Good use of types, some `interface{}` usage |
-| Testing                  | A     | Comprehensive test suite with benchmarks    |
-| Documentation            | B+    | Good README, could use more inline docs     |
-| Decoupling & Testability | A-    | Interface abstraction for KVStore (RESOLVED)|
+| Category                 | Score | Notes                                        |
+| ------------------------ | ----- | -------------------------------------------- |
+| Structure & Organization | A     | Flat, logical Go package layout              |
+| Code Patterns            | A     | Functional options, streaming iterators      |
+| Type Safety              | B+    | Good use of types, some `interface{}` usage  |
+| Testing                  | A     | Comprehensive test suite with benchmarks     |
+| Documentation            | B+    | Good README, could use more inline docs      |
+| Decoupling & Testability | A-    | Interface abstraction for KVStore (RESOLVED) |
 
 ---
 
@@ -104,9 +104,9 @@ Memory-efficient iteration for large result sets. Consistently used across the l
 
 1. **`interface{}` in Patterns**: Still used for flexibility. Consider generics for v2.
 
-2. **Missing Struct Tags**: Some structs lack exhaustive JSON tags.
+2. **Missing Struct Tags**: (ADDRESSED) JSON tags added to exported structs including `BatchOp`.
 
-3. **Boolean Handling**: Magic string conversion inherited from JS.
+3. **Boolean Handling**: (IMPROVED) Now uses `strconv.FormatBool` instead of magic strings.
 
 ---
 
@@ -121,6 +121,7 @@ Memory-efficient iteration for large result sets. Consistently used across the l
 ## Testing Analysis
 
 The test suite is **comprehensive**.
+
 - ✅ Table-Driven Tests
 - ✅ Helper Functions (`t.Helper()`)
 - ✅ Benchmark Suite
@@ -135,9 +136,11 @@ The test suite is **comprehensive**.
 ### 2. Manual JSON Marshal/Unmarshal in Triple (FIXED)
 
 ### 3. Search Iterator Loads All Results (RESOLVED)
+
 Now implements streaming.
 
 ### 4. Missing Context Support (RESOLVED)
+
 All public APIs now accept `context.Context`.
 
 ---
@@ -145,10 +148,12 @@ All public APIs now accept `context.Context`.
 ## Recommendations Summary
 
 ### High Priority
+
 1. **`context.Context` Support**: (RESOLVED)
 2. **Interface Abstraction**: (RESOLVED)
 
 ### Medium Priority
+
 1. **Streaming SearchIterator**: (RESOLVED)
 2. **Clean up stray root-level files**: (FIXED)
 
