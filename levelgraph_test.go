@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestTriple(t *testing.T) {
@@ -1302,5 +1303,260 @@ func TestNavigator_Clone(t *testing.T) {
 	}
 	if len(vals2) != 2 {
 		t.Errorf("nav2 expected 2 values, got %d", len(vals2))
+	}
+}
+
+// Journal tests
+
+func setupJournalDB(t *testing.T) (*DB, func()) {
+	t.Helper()
+
+	dir, err := os.MkdirTemp("", "levelgraph-journal-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+
+	dbPath := filepath.Join(dir, "test.db")
+	db, err := Open(dbPath, WithJournal())
+	if err != nil {
+		os.RemoveAll(dir)
+		t.Fatalf("failed to open database: %v", err)
+	}
+
+	cleanup := func() {
+		db.Close()
+		os.RemoveAll(dir)
+	}
+
+	return db, cleanup
+}
+
+func TestJournal_RecordsOperations(t *testing.T) {
+	db, cleanup := setupJournalDB(t)
+	defer cleanup()
+
+	// Put a triple
+	t1 := NewTripleFromStrings("a", "b", "c")
+	if err := db.Put(t1); err != nil {
+		t.Fatalf("Put failed: %v", err)
+	}
+
+	// Check journal has an entry
+	count, err := db.JournalCount(time.Time{})
+	if err != nil {
+		t.Fatalf("JournalCount failed: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 journal entry, got %d", count)
+	}
+
+	// Get the entry
+	entries, err := db.GetJournalEntries(time.Time{})
+	if err != nil {
+		t.Fatalf("GetJournalEntries failed: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].Operation != "put" {
+		t.Errorf("expected op 'put', got '%s'", entries[0].Operation)
+	}
+	if !entries[0].Triple.Equal(t1) {
+		t.Errorf("triple mismatch")
+	}
+
+	// Delete the triple
+	if err := db.Del(t1); err != nil {
+		t.Fatalf("Del failed: %v", err)
+	}
+
+	count, _ = db.JournalCount(time.Time{})
+	if count != 2 {
+		t.Errorf("expected 2 journal entries, got %d", count)
+	}
+
+	entries, _ = db.GetJournalEntries(time.Time{})
+	if entries[1].Operation != "del" {
+		t.Errorf("expected op 'del', got '%s'", entries[1].Operation)
+	}
+}
+
+func TestJournal_Trim(t *testing.T) {
+	db, cleanup := setupJournalDB(t)
+	defer cleanup()
+
+	// Put some triples
+	t1 := NewTripleFromStrings("a", "b", "c")
+	t2 := NewTripleFromStrings("d", "e", "f")
+	db.Put(t1)
+
+	// Wait a tiny bit to ensure different timestamps
+	time.Sleep(10 * time.Millisecond)
+	trimTime := time.Now()
+	time.Sleep(10 * time.Millisecond)
+
+	db.Put(t2)
+
+	// Should have 2 entries
+	count, _ := db.JournalCount(time.Time{})
+	if count != 2 {
+		t.Errorf("expected 2 journal entries before trim, got %d", count)
+	}
+
+	// Trim entries before trimTime
+	trimmed, err := db.Trim(trimTime)
+	if err != nil {
+		t.Fatalf("Trim failed: %v", err)
+	}
+	if trimmed != 1 {
+		t.Errorf("expected to trim 1 entry, trimmed %d", trimmed)
+	}
+
+	// Should have 1 entry remaining
+	count, _ = db.JournalCount(time.Time{})
+	if count != 1 {
+		t.Errorf("expected 1 journal entry after trim, got %d", count)
+	}
+}
+
+func TestJournal_TrimAndExport(t *testing.T) {
+	db, cleanup := setupJournalDB(t)
+	defer cleanup()
+
+	// Create export target database
+	dir, _ := os.MkdirTemp("", "levelgraph-export-*")
+	defer os.RemoveAll(dir)
+
+	exportPath := filepath.Join(dir, "export.db")
+	exportDB, err := Open(exportPath, WithJournal())
+	if err != nil {
+		t.Fatalf("failed to open export database: %v", err)
+	}
+	defer exportDB.Close()
+
+	// Put some triples
+	t1 := NewTripleFromStrings("a", "b", "c")
+	t2 := NewTripleFromStrings("d", "e", "f")
+	db.Put(t1)
+
+	time.Sleep(10 * time.Millisecond)
+	trimTime := time.Now()
+	time.Sleep(10 * time.Millisecond)
+
+	db.Put(t2)
+
+	// Export old entries
+	exported, err := db.TrimAndExport(trimTime, exportDB)
+	if err != nil {
+		t.Fatalf("TrimAndExport failed: %v", err)
+	}
+	if exported != 1 {
+		t.Errorf("expected to export 1 entry, exported %d", exported)
+	}
+
+	// Main DB should have 1 entry
+	mainCount, _ := db.JournalCount(time.Time{})
+	if mainCount != 1 {
+		t.Errorf("expected 1 entry in main db, got %d", mainCount)
+	}
+
+	// Export DB should have 1 entry
+	exportCount, _ := exportDB.JournalCount(time.Time{})
+	if exportCount != 1 {
+		t.Errorf("expected 1 entry in export db, got %d", exportCount)
+	}
+}
+
+func TestJournal_Replay(t *testing.T) {
+	db, cleanup := setupJournalDB(t)
+	defer cleanup()
+
+	// Create replay target database
+	dir, _ := os.MkdirTemp("", "levelgraph-replay-*")
+	defer os.RemoveAll(dir)
+
+	replayPath := filepath.Join(dir, "replay.db")
+	replayDB, err := Open(replayPath)
+	if err != nil {
+		t.Fatalf("failed to open replay database: %v", err)
+	}
+	defer replayDB.Close()
+
+	// Put some triples
+	t1 := NewTripleFromStrings("a", "b", "c")
+	t2 := NewTripleFromStrings("d", "e", "f")
+	db.Put(t1)
+	db.Put(t2)
+	db.Del(t1)
+
+	// Replay to target
+	replayed, err := db.ReplayJournal(time.Time{}, replayDB)
+	if err != nil {
+		t.Fatalf("ReplayJournal failed: %v", err)
+	}
+	if replayed != 3 {
+		t.Errorf("expected to replay 3 operations, replayed %d", replayed)
+	}
+
+	// Check replay result - should only have t2
+	results1, _ := replayDB.Get(&Pattern{Subject: []byte("a")})
+	if len(results1) != 0 {
+		t.Error("expected triple 'a' to be deleted")
+	}
+
+	results2, _ := replayDB.Get(&Pattern{Subject: []byte("d")})
+	if len(results2) != 1 {
+		t.Error("expected triple 'd' to exist")
+	}
+}
+
+func TestJournal_DisabledByDefault(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Put a triple (journal should be disabled)
+	t1 := NewTripleFromStrings("a", "b", "c")
+	db.Put(t1)
+
+	// Journal should be empty
+	count, _ := db.JournalCount(time.Time{})
+	if count != 0 {
+		t.Errorf("expected 0 journal entries (disabled), got %d", count)
+	}
+}
+
+func TestJournal_Iterator(t *testing.T) {
+	db, cleanup := setupJournalDB(t)
+	defer cleanup()
+
+	// Put some triples
+	db.Put(NewTripleFromStrings("a", "b", "c"))
+	db.Put(NewTripleFromStrings("d", "e", "f"))
+	db.Put(NewTripleFromStrings("g", "h", "i"))
+
+	iter, err := db.GetJournalIterator(time.Time{})
+	if err != nil {
+		t.Fatalf("GetJournalIterator failed: %v", err)
+	}
+	defer iter.Close()
+
+	count := 0
+	for iter.Next() {
+		entry, err := iter.Entry()
+		if err != nil {
+			t.Fatalf("Entry() failed: %v", err)
+		}
+		if entry.Operation != "put" {
+			t.Errorf("expected 'put' operation")
+		}
+		count++
+	}
+
+	if err := iter.Error(); err != nil {
+		t.Fatalf("iterator error: %v", err)
+	}
+
+	if count != 3 {
+		t.Errorf("expected 3 entries, got %d", count)
 	}
 }

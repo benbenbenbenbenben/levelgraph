@@ -321,13 +321,6 @@ func validateTriple(triple *Triple) error {
 	return nil
 }
 
-// recordJournalEntry adds a journal entry to the batch.
-// This is a placeholder - full implementation in journal.go
-func (db *DB) recordJournalEntry(batch *leveldb.Batch, op string, triple *Triple) error {
-	// TODO: Implement in journal.go
-	return nil
-}
-
 // TripleIterator iterates over triples from a query.
 type TripleIterator struct {
 	iter         iterator.Iterator
