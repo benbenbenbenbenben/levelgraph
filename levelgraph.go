@@ -209,7 +209,13 @@ func (db *DB) Get(pattern *Pattern) ([]*Triple, error) {
 		return nil, ErrClosed
 	}
 
-	iter, err := db.GetIterator(pattern)
+	return db.getUnlocked(pattern)
+}
+
+// getUnlocked is the internal get method that doesn't acquire locks.
+// Caller must hold at least a read lock.
+func (db *DB) getUnlocked(pattern *Pattern) ([]*Triple, error) {
+	iter, err := db.getIteratorUnlocked(pattern)
 	if err != nil {
 		return nil, err
 	}
@@ -240,6 +246,12 @@ func (db *DB) GetIterator(pattern *Pattern) (*TripleIterator, error) {
 		return nil, ErrClosed
 	}
 
+	return db.getIteratorUnlocked(pattern)
+}
+
+// getIteratorUnlocked is the internal iterator method that doesn't acquire locks.
+// Caller must hold at least a read lock.
+func (db *DB) getIteratorUnlocked(pattern *Pattern) (*TripleIterator, error) {
 	// Determine the best index to use
 	fields := pattern.ConcreteFields()
 	index := FindIndex(fields, "")

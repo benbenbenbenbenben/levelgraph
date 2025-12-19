@@ -160,6 +160,7 @@ func GenKeyFromPattern(index IndexName, pattern *Pattern) []byte {
 
 	buf.WriteString(string(index))
 
+	concreteCount := 0
 	for _, field := range def {
 		value := pattern.GetConcreteValue(field)
 		if value == nil {
@@ -167,10 +168,14 @@ func GenKeyFromPattern(index IndexName, pattern *Pattern) []byte {
 		}
 		buf.Write(keySeparator)
 		buf.Write(Escape(value))
+		concreteCount++
 	}
 
-	// Add trailing separator
-	buf.Write(keySeparator)
+	// Only add trailing separator if we don't have all 3 fields
+	// (this makes range queries work correctly)
+	if concreteCount < 3 {
+		buf.Write(keySeparator)
+	}
 
 	return buf.Bytes()
 }
@@ -189,9 +194,11 @@ func GenKeyWithUpperBound(index IndexName, pattern *Pattern) []byte {
 		}
 	}
 
-	// If we have all 3 fields, no need for upper bound
+	// If we have all 3 fields, we still need an upper bound for range query to work.
+	// LevelDB range is [start, limit), so if start == limit, nothing is returned.
+	// Add a byte to make the range inclusive of the exact key.
 	if concreteCount == 3 {
-		return key
+		return append(key, 0xFF)
 	}
 
 	return append(key, upperBound...)

@@ -567,3 +567,740 @@ func TestGenerateBatch(t *testing.T) {
 		}
 	}
 }
+
+// setupFOAFData sets up the FOAF test data from the JS fixtures
+func setupFOAFData(db *DB) error {
+	triples := []*Triple{
+		NewTripleFromStrings("matteo", "friend", "daniele"),
+		NewTripleFromStrings("daniele", "friend", "matteo"),
+		NewTripleFromStrings("daniele", "friend", "marco"),
+		NewTripleFromStrings("lucio", "friend", "matteo"),
+		NewTripleFromStrings("lucio", "friend", "marco"),
+		NewTripleFromStrings("marco", "friend", "davide"),
+		NewTripleFromStrings("marco", "age", "32"),
+		NewTripleFromStrings("daniele", "age", "25"),
+		NewTripleFromStrings("lucio", "age", "15"),
+		NewTripleFromStrings("davide", "age", "70"),
+	}
+	return db.Put(triples...)
+}
+
+func TestSearch_SinglePattern(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	t.Run("search with one result", func(t *testing.T) {
+		results, err := db.Search([]*Pattern{
+			{
+				Subject:   V("x"),
+				Predicate: []byte("friend"),
+				Object:    []byte("daniele"),
+			},
+		}, nil)
+		if err != nil {
+			t.Fatalf("Search failed: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result, got %d", len(results))
+		}
+		if string(results[0]["x"]) != "matteo" {
+			t.Errorf("expected x='matteo', got '%s'", results[0]["x"])
+		}
+	})
+
+	t.Run("search with multiple results", func(t *testing.T) {
+		results, err := db.Search([]*Pattern{
+			{
+				Subject:   V("x"),
+				Predicate: []byte("friend"),
+				Object:    []byte("marco"),
+			},
+		}, nil)
+		if err != nil {
+			t.Fatalf("Search failed: %v", err)
+		}
+		if len(results) != 2 {
+			t.Fatalf("expected 2 results, got %d", len(results))
+		}
+	})
+}
+
+func TestSearch_Join(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	t.Run("two pattern join", func(t *testing.T) {
+		// Find people who are friends with both marco and matteo
+		results, err := db.Search([]*Pattern{
+			{
+				Subject:   V("x"),
+				Predicate: []byte("friend"),
+				Object:    []byte("marco"),
+			},
+			{
+				Subject:   V("x"),
+				Predicate: []byte("friend"),
+				Object:    []byte("matteo"),
+			},
+		}, nil)
+		if err != nil {
+			t.Fatalf("Search failed: %v", err)
+		}
+		if len(results) != 2 {
+			t.Fatalf("expected 2 results (daniele and lucio), got %d", len(results))
+		}
+
+		// Verify we got daniele and lucio
+		names := make(map[string]bool)
+		for _, r := range results {
+			names[string(r["x"])] = true
+		}
+		if !names["daniele"] || !names["lucio"] {
+			t.Error("expected daniele and lucio in results")
+		}
+	})
+
+	t.Run("friend of friend", func(t *testing.T) {
+		// Find friends of friends of matteo who are friends with davide
+		results, err := db.Search([]*Pattern{
+			{
+				Subject:   []byte("matteo"),
+				Predicate: []byte("friend"),
+				Object:    V("x"),
+			},
+			{
+				Subject:   V("x"),
+				Predicate: []byte("friend"),
+				Object:    V("y"),
+			},
+			{
+				Subject:   V("y"),
+				Predicate: []byte("friend"),
+				Object:    []byte("davide"),
+			},
+		}, nil)
+		if err != nil {
+			t.Fatalf("Search failed: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result, got %d", len(results))
+		}
+		if string(results[0]["x"]) != "daniele" {
+			t.Errorf("expected x='daniele', got '%s'", results[0]["x"])
+		}
+		if string(results[0]["y"]) != "marco" {
+			t.Errorf("expected y='marco', got '%s'", results[0]["y"])
+		}
+	})
+
+	t.Run("mutual friends", func(t *testing.T) {
+		// Find pairs where both are friends with each other
+		results, err := db.Search([]*Pattern{
+			{
+				Subject:   V("x"),
+				Predicate: []byte("friend"),
+				Object:    V("y"),
+			},
+			{
+				Subject:   V("y"),
+				Predicate: []byte("friend"),
+				Object:    V("x"),
+			},
+		}, nil)
+		if err != nil {
+			t.Fatalf("Search failed: %v", err)
+		}
+		// Should find matteo<->daniele and daniele<->matteo
+		if len(results) != 2 {
+			t.Fatalf("expected 2 mutual friend pairs, got %d", len(results))
+		}
+	})
+
+	t.Run("common friends", func(t *testing.T) {
+		// Find common friends of lucio and daniele
+		results, err := db.Search([]*Pattern{
+			{
+				Subject:   []byte("lucio"),
+				Predicate: []byte("friend"),
+				Object:    V("x"),
+			},
+			{
+				Subject:   []byte("daniele"),
+				Predicate: []byte("friend"),
+				Object:    V("x"),
+			},
+		}, nil)
+		if err != nil {
+			t.Fatalf("Search failed: %v", err)
+		}
+		// Both are friends with marco and matteo
+		if len(results) != 2 {
+			t.Fatalf("expected 2 common friends, got %d", len(results))
+		}
+	})
+}
+
+func TestSearch_Limit(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	results, err := db.Search([]*Pattern{
+		{
+			Subject:   V("x"),
+			Predicate: []byte("friend"),
+			Object:    []byte("marco"),
+		},
+		{
+			Subject:   V("x"),
+			Predicate: []byte("friend"),
+			Object:    []byte("matteo"),
+		},
+	}, &SearchOptions{Limit: 1})
+	if err != nil {
+		t.Fatalf("Search failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result with limit, got %d", len(results))
+	}
+}
+
+func TestSearch_Offset(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	results, err := db.Search([]*Pattern{
+		{
+			Subject:   V("x"),
+			Predicate: []byte("friend"),
+			Object:    []byte("marco"),
+		},
+		{
+			Subject:   V("x"),
+			Predicate: []byte("friend"),
+			Object:    []byte("matteo"),
+		},
+	}, &SearchOptions{Offset: 1})
+	if err != nil {
+		t.Fatalf("Search failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result with offset, got %d", len(results))
+	}
+}
+
+func TestSearch_SolutionFilter(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	// Find friends of matteo, but filter out daniele
+	results, err := db.Search([]*Pattern{
+		{
+			Subject:   []byte("matteo"),
+			Predicate: []byte("friend"),
+			Object:    V("y"),
+		},
+		{
+			Subject:   V("y"),
+			Predicate: []byte("friend"),
+			Object:    V("x"),
+		},
+	}, &SearchOptions{
+		Filter: func(s Solution) bool {
+			return string(s["x"]) != "matteo"
+		},
+	})
+	if err != nil {
+		t.Fatalf("Search failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 filtered result, got %d", len(results))
+	}
+	if string(results[0]["x"]) != "marco" {
+		t.Errorf("expected x='marco', got '%s'", results[0]["x"])
+	}
+}
+
+func TestSearch_Materialized(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	results, err := db.Search([]*Pattern{
+		{
+			Subject:   V("x"),
+			Predicate: []byte("friend"),
+			Object:    []byte("marco"),
+		},
+		{
+			Subject:   V("x"),
+			Predicate: []byte("friend"),
+			Object:    []byte("matteo"),
+		},
+	}, &SearchOptions{
+		Materialized: &Pattern{
+			Subject:   V("x"),
+			Predicate: []byte("newpredicate"),
+			Object:    []byte("abcde"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Search failed: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 materialized results, got %d", len(results))
+	}
+
+	for _, r := range results {
+		if string(r["predicate"]) != "newpredicate" {
+			t.Errorf("expected predicate='newpredicate', got '%s'", r["predicate"])
+		}
+		if string(r["object"]) != "abcde" {
+			t.Errorf("expected object='abcde', got '%s'", r["object"])
+		}
+	}
+}
+
+func TestSearch_PatternFilter(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	// Find friends of daniele but filter at pattern level
+	results, err := db.Search([]*Pattern{
+		{
+			Subject:   V("x"),
+			Predicate: []byte("friend"),
+			Object:    []byte("daniele"),
+			Filter: func(t *Triple) bool {
+				return string(t.Subject) != "matteo"
+			},
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("Search failed: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected 0 results after filter, got %d", len(results))
+	}
+}
+
+func TestSearch_EmptyPatterns(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	results, err := db.Search([]*Pattern{}, nil)
+	if err != nil {
+		t.Fatalf("Search failed: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected 0 results for empty patterns, got %d", len(results))
+	}
+}
+
+func TestSearchIterator(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	iter, err := db.SearchIterator([]*Pattern{
+		{
+			Subject:   V("x"),
+			Predicate: []byte("friend"),
+			Object:    []byte("marco"),
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("SearchIterator failed: %v", err)
+	}
+	defer iter.Close()
+
+	count := 0
+	for iter.Next() {
+		sol := iter.Solution()
+		if sol == nil {
+			t.Error("solution should not be nil")
+		}
+		count++
+	}
+
+	if count != 2 {
+		t.Errorf("expected 2 iterations, got %d", count)
+	}
+}
+
+// Navigator tests - ported from JS navigator_spec.js
+
+func TestNavigator_SingleVertex(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	values, err := db.Nav("matteo").Values()
+	if err != nil {
+		t.Fatalf("Navigator failed: %v", err)
+	}
+	if len(values) != 1 {
+		t.Fatalf("expected 1 value, got %d", len(values))
+	}
+	if string(values[0]) != "matteo" {
+		t.Errorf("expected 'matteo', got '%s'", values[0])
+	}
+}
+
+func TestNavigator_ArchOut(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	values, err := db.Nav("matteo").ArchOut("friend").Values()
+	if err != nil {
+		t.Fatalf("Navigator failed: %v", err)
+	}
+	if len(values) != 1 {
+		t.Fatalf("expected 1 value, got %d", len(values))
+	}
+	if string(values[0]) != "daniele" {
+		t.Errorf("expected 'daniele', got '%s'", values[0])
+	}
+}
+
+func TestNavigator_ArchIn(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	values, err := db.Nav("davide").ArchIn("friend").Values()
+	if err != nil {
+		t.Fatalf("Navigator failed: %v", err)
+	}
+	if len(values) != 1 {
+		t.Fatalf("expected 1 value, got %d", len(values))
+	}
+	if string(values[0]) != "marco" {
+		t.Errorf("expected 'marco', got '%s'", values[0])
+	}
+}
+
+func TestNavigator_MultipleArchs(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	// Follow path: davide <- friend <- friend -> friend
+	values, err := db.Nav("davide").
+		ArchIn("friend").
+		ArchIn("friend").
+		ArchOut("friend").
+		Values()
+	if err != nil {
+		t.Fatalf("Navigator failed: %v", err)
+	}
+	if len(values) != 2 {
+		t.Fatalf("expected 2 values, got %d", len(values))
+	}
+
+	// Should contain marco and matteo
+	found := make(map[string]bool)
+	for _, v := range values {
+		found[string(v)] = true
+	}
+	if !found["marco"] || !found["matteo"] {
+		t.Errorf("expected marco and matteo, got %v", found)
+	}
+}
+
+func TestNavigator_As(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	// marco <- friend as 'a' -> friend -> friend as 'a'
+	// This should find cases where the same person appears at both positions
+	values, err := db.Nav("marco").
+		ArchIn("friend").
+		As("a").
+		ArchOut("friend").
+		ArchOut("friend").
+		As("a").
+		Values()
+	if err != nil {
+		t.Fatalf("Navigator failed: %v", err)
+	}
+	if len(values) != 1 {
+		t.Fatalf("expected 1 value, got %d", len(values))
+	}
+	if string(values[0]) != "daniele" {
+		t.Errorf("expected 'daniele', got '%s'", values[0])
+	}
+}
+
+func TestNavigator_Bind(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	// matteo <- friend.bind('lucio') -> friend.bind('marco')
+	values, err := db.Nav("matteo").
+		ArchIn("friend").
+		Bind("lucio").
+		ArchOut("friend").
+		Bind("marco").
+		Values()
+	if err != nil {
+		t.Fatalf("Navigator failed: %v", err)
+	}
+	if len(values) != 1 {
+		t.Fatalf("expected 1 value, got %d", len(values))
+	}
+	if string(values[0]) != "marco" {
+		t.Errorf("expected 'marco', got '%s'", values[0])
+	}
+}
+
+func TestNavigator_StartFromVariable(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	// Start from variable -> friend.bind('matteo') -> friend
+	values, err := db.Nav(nil).
+		ArchOut("friend").
+		Bind("matteo").
+		ArchOut("friend").
+		Values()
+	if err != nil {
+		t.Fatalf("Navigator failed: %v", err)
+	}
+	if len(values) != 1 {
+		t.Fatalf("expected 1 value, got %d", len(values))
+	}
+	if string(values[0]) != "daniele" {
+		t.Errorf("expected 'daniele', got '%s'", values[0])
+	}
+}
+
+func TestNavigator_Solutions(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	solutions, err := db.Nav("daniele").
+		ArchOut("friend").
+		As("a").
+		Solutions()
+	if err != nil {
+		t.Fatalf("Navigator failed: %v", err)
+	}
+	if len(solutions) != 2 {
+		t.Fatalf("expected 2 solutions, got %d", len(solutions))
+	}
+
+	// Should have marco and matteo as 'a'
+	found := make(map[string]bool)
+	for _, sol := range solutions {
+		if val, ok := sol["a"]; ok {
+			found[string(val)] = true
+		}
+	}
+	if !found["marco"] || !found["matteo"] {
+		t.Errorf("expected marco and matteo as 'a', got %v", found)
+	}
+}
+
+func TestNavigator_NoConditions(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	// No conditions should return initial solution (empty)
+	solutions, err := db.Nav("daniele").Solutions()
+	if err != nil {
+		t.Fatalf("Navigator failed: %v", err)
+	}
+	if len(solutions) != 1 {
+		t.Fatalf("expected 1 empty solution, got %d", len(solutions))
+	}
+}
+
+func TestNavigator_Go(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	// marco <- friend as 'a', go to matteo -> friend as 'b'
+	solutions, err := db.Nav("marco").
+		ArchIn("friend").
+		As("a").
+		Go("matteo").
+		ArchOut("friend").
+		As("b").
+		Solutions()
+	if err != nil {
+		t.Fatalf("Navigator failed: %v", err)
+	}
+	if len(solutions) != 2 {
+		t.Fatalf("expected 2 solutions, got %d", len(solutions))
+	}
+
+	// Both should have b='daniele', and a should be 'daniele' or 'lucio'
+	for _, sol := range solutions {
+		if string(sol["b"]) != "daniele" {
+			t.Errorf("expected b='daniele', got '%s'", sol["b"])
+		}
+	}
+}
+
+func TestNavigator_GoToVariable(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	// marco, go to var as 'a' -> friend as 'b'.bind('matteo')
+	solutions, err := db.Nav("marco").
+		Go(nil).
+		As("a").
+		ArchOut("friend").
+		As("b").
+		Bind("matteo").
+		Solutions()
+	if err != nil {
+		t.Fatalf("Navigator failed: %v", err)
+	}
+	if len(solutions) != 2 {
+		t.Fatalf("expected 2 solutions, got %d", len(solutions))
+	}
+
+	// Both should have b='matteo', and a should be 'daniele' or 'lucio'
+	for _, sol := range solutions {
+		if string(sol["b"]) != "matteo" {
+			t.Errorf("expected b='matteo', got '%s'", sol["b"])
+		}
+	}
+}
+
+func TestNavigator_Exists(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	exists, err := db.Nav("matteo").ArchOut("friend").Exists()
+	if err != nil {
+		t.Fatalf("Navigator failed: %v", err)
+	}
+	if !exists {
+		t.Error("expected to find friends of matteo")
+	}
+
+	exists, err = db.Nav("nobody").ArchOut("friend").Exists()
+	if err != nil {
+		t.Fatalf("Navigator failed: %v", err)
+	}
+	if exists {
+		t.Error("expected not to find friends of nobody")
+	}
+}
+
+func TestNavigator_Count(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	count, err := db.Nav("daniele").ArchOut("friend").Count()
+	if err != nil {
+		t.Fatalf("Navigator failed: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2 friends, got %d", count)
+	}
+}
+
+func TestNavigator_Clone(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	if err := setupFOAFData(db); err != nil {
+		t.Fatalf("failed to setup data: %v", err)
+	}
+
+	nav1 := db.Nav("matteo").ArchOut("friend")
+	nav2 := nav1.Clone().ArchOut("friend")
+
+	// nav1 should have 1 condition, nav2 should have 2
+	vals1, _ := nav1.Values()
+	vals2, _ := nav2.Values()
+
+	if len(vals1) != 1 {
+		t.Errorf("nav1 expected 1 value, got %d", len(vals1))
+	}
+	if len(vals2) != 2 {
+		t.Errorf("nav2 expected 2 values, got %d", len(vals2))
+	}
+}
