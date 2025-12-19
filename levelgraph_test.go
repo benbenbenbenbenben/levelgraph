@@ -1560,3 +1560,234 @@ func TestJournal_Iterator(t *testing.T) {
 		t.Errorf("expected 3 entries, got %d", count)
 	}
 }
+
+// Facet tests
+
+func setupFacetDB(t *testing.T) (*DB, func()) {
+	t.Helper()
+
+	dir, err := os.MkdirTemp("", "levelgraph-facet-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+
+	dbPath := filepath.Join(dir, "test.db")
+	db, err := Open(dbPath, WithFacets())
+	if err != nil {
+		os.RemoveAll(dir)
+		t.Fatalf("failed to open database: %v", err)
+	}
+
+	cleanup := func() {
+		db.Close()
+		os.RemoveAll(dir)
+	}
+
+	return db, cleanup
+}
+
+func TestFacet_ComponentFacets(t *testing.T) {
+	db, cleanup := setupFacetDB(t)
+	defer cleanup()
+
+	// Set a facet on a subject
+	err := db.SetFacet(FacetSubject, []byte("alice"), []byte("age"), []byte("30"))
+	if err != nil {
+		t.Fatalf("SetFacet failed: %v", err)
+	}
+
+	// Get the facet
+	value, err := db.GetFacet(FacetSubject, []byte("alice"), []byte("age"))
+	if err != nil {
+		t.Fatalf("GetFacet failed: %v", err)
+	}
+	if string(value) != "30" {
+		t.Errorf("expected '30', got '%s'", value)
+	}
+
+	// Set another facet
+	err = db.SetFacet(FacetSubject, []byte("alice"), []byte("city"), []byte("NYC"))
+	if err != nil {
+		t.Fatalf("SetFacet failed: %v", err)
+	}
+
+	// Get all facets
+	facets, err := db.GetFacets(FacetSubject, []byte("alice"))
+	if err != nil {
+		t.Fatalf("GetFacets failed: %v", err)
+	}
+	if len(facets) != 2 {
+		t.Errorf("expected 2 facets, got %d", len(facets))
+	}
+	if string(facets["age"]) != "30" {
+		t.Errorf("expected age='30'")
+	}
+	if string(facets["city"]) != "NYC" {
+		t.Errorf("expected city='NYC'")
+	}
+
+	// Delete a facet
+	err = db.DelFacet(FacetSubject, []byte("alice"), []byte("age"))
+	if err != nil {
+		t.Fatalf("DelFacet failed: %v", err)
+	}
+
+	// Verify deletion
+	value, err = db.GetFacet(FacetSubject, []byte("alice"), []byte("age"))
+	if err != nil {
+		t.Fatalf("GetFacet failed: %v", err)
+	}
+	if value != nil {
+		t.Errorf("expected nil after deletion, got '%s'", value)
+	}
+}
+
+func TestFacet_TripleFacets(t *testing.T) {
+	db, cleanup := setupFacetDB(t)
+	defer cleanup()
+
+	triple := NewTripleFromStrings("alice", "knows", "bob")
+
+	// Put the triple
+	db.Put(triple)
+
+	// Set a facet on the triple
+	err := db.SetTripleFacet(triple, []byte("since"), []byte("2020"))
+	if err != nil {
+		t.Fatalf("SetTripleFacet failed: %v", err)
+	}
+
+	// Get the facet
+	value, err := db.GetTripleFacet(triple, []byte("since"))
+	if err != nil {
+		t.Fatalf("GetTripleFacet failed: %v", err)
+	}
+	if string(value) != "2020" {
+		t.Errorf("expected '2020', got '%s'", value)
+	}
+
+	// Set another facet
+	err = db.SetTripleFacet(triple, []byte("weight"), []byte("0.9"))
+	if err != nil {
+		t.Fatalf("SetTripleFacet failed: %v", err)
+	}
+
+	// Get all facets
+	facets, err := db.GetTripleFacets(triple)
+	if err != nil {
+		t.Fatalf("GetTripleFacets failed: %v", err)
+	}
+	if len(facets) != 2 {
+		t.Errorf("expected 2 facets, got %d", len(facets))
+	}
+
+	// Delete a facet
+	err = db.DelTripleFacet(triple, []byte("since"))
+	if err != nil {
+		t.Fatalf("DelTripleFacet failed: %v", err)
+	}
+
+	facets, _ = db.GetTripleFacets(triple)
+	if len(facets) != 1 {
+		t.Errorf("expected 1 facet after deletion, got %d", len(facets))
+	}
+
+	// Delete all facets
+	err = db.DelAllTripleFacets(triple)
+	if err != nil {
+		t.Fatalf("DelAllTripleFacets failed: %v", err)
+	}
+
+	facets, _ = db.GetTripleFacets(triple)
+	if len(facets) != 0 {
+		t.Errorf("expected 0 facets after delete all, got %d", len(facets))
+	}
+}
+
+func TestFacet_DisabledByDefault(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	err := db.SetFacet(FacetSubject, []byte("alice"), []byte("age"), []byte("30"))
+	if err != ErrFacetsDisabled {
+		t.Errorf("expected ErrFacetsDisabled, got %v", err)
+	}
+}
+
+func TestFacet_Iterator(t *testing.T) {
+	db, cleanup := setupFacetDB(t)
+	defer cleanup()
+
+	// Set multiple facets
+	db.SetFacet(FacetSubject, []byte("alice"), []byte("age"), []byte("30"))
+	db.SetFacet(FacetSubject, []byte("alice"), []byte("city"), []byte("NYC"))
+	db.SetFacet(FacetSubject, []byte("alice"), []byte("email"), []byte("alice@example.com"))
+
+	iter, err := db.GetFacetIterator(FacetSubject, []byte("alice"))
+	if err != nil {
+		t.Fatalf("GetFacetIterator failed: %v", err)
+	}
+	defer iter.Close()
+
+	count := 0
+	for iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+		if key == nil || value == nil {
+			t.Error("key and value should not be nil")
+		}
+		count++
+	}
+
+	if err := iter.Error(); err != nil {
+		t.Fatalf("iterator error: %v", err)
+	}
+
+	if count != 3 {
+		t.Errorf("expected 3 facets, got %d", count)
+	}
+}
+
+func TestFacet_DifferentTypes(t *testing.T) {
+	db, cleanup := setupFacetDB(t)
+	defer cleanup()
+
+	// Set facets on different component types
+	db.SetFacet(FacetSubject, []byte("value1"), []byte("key"), []byte("subject_facet"))
+	db.SetFacet(FacetPredicate, []byte("value1"), []byte("key"), []byte("predicate_facet"))
+	db.SetFacet(FacetObject, []byte("value1"), []byte("key"), []byte("object_facet"))
+
+	// Verify they are stored separately
+	v1, _ := db.GetFacet(FacetSubject, []byte("value1"), []byte("key"))
+	v2, _ := db.GetFacet(FacetPredicate, []byte("value1"), []byte("key"))
+	v3, _ := db.GetFacet(FacetObject, []byte("value1"), []byte("key"))
+
+	if string(v1) != "subject_facet" {
+		t.Errorf("expected 'subject_facet', got '%s'", v1)
+	}
+	if string(v2) != "predicate_facet" {
+		t.Errorf("expected 'predicate_facet', got '%s'", v2)
+	}
+	if string(v3) != "object_facet" {
+		t.Errorf("expected 'object_facet', got '%s'", v3)
+	}
+}
+
+func TestFacet_SpecialCharacters(t *testing.T) {
+	db, cleanup := setupFacetDB(t)
+	defer cleanup()
+
+	// Test with special characters in values
+	err := db.SetFacet(FacetSubject, []byte("alice::bob"), []byte("key::with::colons"), []byte("value\\with\\backslash"))
+	if err != nil {
+		t.Fatalf("SetFacet failed: %v", err)
+	}
+
+	value, err := db.GetFacet(FacetSubject, []byte("alice::bob"), []byte("key::with::colons"))
+	if err != nil {
+		t.Fatalf("GetFacet failed: %v", err)
+	}
+	if string(value) != "value\\with\\backslash" {
+		t.Errorf("expected 'value\\with\\backslash', got '%s'", value)
+	}
+}
