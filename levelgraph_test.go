@@ -2740,3 +2740,72 @@ func TestPattern_Matches_EdgeCases(t *testing.T) {
 		t.Error("pattern with non-matching object should not match")
 	}
 }
+
+func TestNavigator_Go_EdgeCases(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	db.Put(NewTripleFromStrings("alice", "knows", "bob"))
+
+	// Go with nil creates a new variable
+	nav := db.Nav(nil).Go(nil)
+	if nav.lastElement == nil {
+		t.Error("Go(nil) should create a new variable")
+	}
+	if _, ok := nav.lastElement.(*Variable); !ok {
+		t.Error("Go(nil) should create a Variable")
+	}
+
+	// Go with []byte
+	nav = db.Nav(nil).Go([]byte("test"))
+	if b, ok := nav.lastElement.([]byte); !ok || string(b) != "test" {
+		t.Error("Go([]byte) should set lastElement to that []byte")
+	}
+
+	// Go with string
+	nav = db.Nav(nil).Go("test")
+	if b, ok := nav.lastElement.([]byte); !ok || string(b) != "test" {
+		t.Error("Go(string) should convert to []byte")
+	}
+
+	// Go with *Variable
+	v := V("myvar")
+	nav = db.Nav(nil).Go(v)
+	if nav.lastElement != v {
+		t.Error("Go(*Variable) should set lastElement to that Variable")
+	}
+
+	// Go with unknown type creates a new variable
+	nav = db.Nav(nil).Go(123)
+	if _, ok := nav.lastElement.(*Variable); !ok {
+		t.Error("Go(unknown type) should create a new Variable")
+	}
+}
+
+func TestNavigator_normalizeValue_EdgeCases(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	db.Put(NewTripleFromStrings("alice", "knows", "bob"))
+
+	// Test ArchOut with empty []byte predicate - treated as nil/wildcard
+	nav := db.Nav([]byte("alice")).ArchOut([]byte{})
+	solutions, err := nav.Solutions()
+	if err != nil {
+		t.Fatalf("Solutions failed: %v", err)
+	}
+	// Empty predicate is normalized to nil, which means "any predicate"
+	if len(solutions) != 1 {
+		t.Errorf("expected 1 solution with nil predicate, got %d", len(solutions))
+	}
+
+	// Test ArchOut with empty string predicate
+	nav = db.Nav([]byte("alice")).ArchOut("")
+	solutions, err = nav.Solutions()
+	if err != nil {
+		t.Fatalf("Solutions failed: %v", err)
+	}
+	if len(solutions) != 1 {
+		t.Errorf("expected 1 solution with empty string predicate, got %d", len(solutions))
+	}
+}
