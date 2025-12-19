@@ -49,6 +49,7 @@ func main() {
 		cmdDump()
 	case "nuke":
 		cmdNuke()
+// TODO: case "install": // install to the users bin path (any OS!) - needs docs etc too
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 		printHelp()
