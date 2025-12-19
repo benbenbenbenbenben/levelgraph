@@ -29,6 +29,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 func TestTriple(t *testing.T) {
@@ -2593,4 +2595,43 @@ func TestGetTripleFacetIterator(t *testing.T) {
 	if count != 2 {
 		t.Errorf("expected 2 facets, got %d", count)
 	}
+}
+
+func TestOpenWithDB(t *testing.T) {
+	dir, err := os.MkdirTemp("", "levelgraph-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+
+	// Open LevelDB directly
+	ldb, err := leveldb.OpenFile(filepath.Join(dir, "test.db"), nil)
+	if err != nil {
+		t.Fatalf("failed to open LevelDB: %v", err)
+	}
+
+	// Wrap with LevelGraph
+	db := OpenWithDB(ldb, WithJournal())
+	if db == nil {
+		t.Fatal("OpenWithDB should return a DB")
+	}
+	if !db.options.JournalEnabled {
+		t.Error("options should be applied")
+	}
+
+	// Verify it works
+	triple := NewTripleFromStrings("a", "b", "c")
+	if err := db.Put(triple); err != nil {
+		t.Fatalf("Put failed: %v", err)
+	}
+
+	results, err := db.Get(&Pattern{Subject: []byte("a")})
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("expected 1 result, got %d", len(results))
+	}
+
+	db.Close()
 }
