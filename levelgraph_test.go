@@ -2149,3 +2149,448 @@ func TestEdgeCase_ReverseLimitOffset(t *testing.T) {
 		t.Errorf("expected 'a3' with reverse and limit, got '%s'", results[0].Subject)
 	}
 }
+
+// ============================================================================
+// Additional coverage tests for uncovered utility functions
+// ============================================================================
+
+func TestTriple_String(t *testing.T) {
+	triple := NewTripleFromStrings("alice", "knows", "bob")
+	str := triple.String()
+	expected := "alice knows bob"
+	if str != expected {
+		t.Errorf("expected '%s', got '%s'", expected, str)
+	}
+}
+
+func TestTriple_Set(t *testing.T) {
+	triple := NewTripleFromStrings("a", "b", "c")
+
+	triple.Set("subject", []byte("x"))
+	if string(triple.Subject) != "x" {
+		t.Errorf("expected subject 'x', got '%s'", triple.Subject)
+	}
+
+	triple.Set("predicate", []byte("y"))
+	if string(triple.Predicate) != "y" {
+		t.Errorf("expected predicate 'y', got '%s'", triple.Predicate)
+	}
+
+	triple.Set("object", []byte("z"))
+	if string(triple.Object) != "z" {
+		t.Errorf("expected object 'z', got '%s'", triple.Object)
+	}
+
+	// Invalid field should be a no-op
+	triple.Set("invalid", []byte("test"))
+	if string(triple.Subject) != "x" || string(triple.Predicate) != "y" || string(triple.Object) != "z" {
+		t.Error("invalid field should not change triple")
+	}
+}
+
+func TestVariable_GetValue(t *testing.T) {
+	v := V("x")
+	sol := Solution{"x": []byte("value")}
+
+	result := v.GetValue(sol)
+	if string(result) != "value" {
+		t.Errorf("expected 'value', got '%s'", result)
+	}
+
+	// Unbound variable
+	emptySol := Solution{}
+	result = v.GetValue(emptySol)
+	if result != nil {
+		t.Error("unbound variable should return nil")
+	}
+}
+
+func TestVariable_Equal(t *testing.T) {
+	sol1 := Solution{"x": []byte("a"), "y": []byte("b")}
+	sol2 := Solution{"x": []byte("a"), "y": []byte("b")}
+	sol3 := Solution{"x": []byte("a"), "y": []byte("c")}
+	sol4 := Solution{"x": []byte("a")}
+
+	if !sol1.Equal(sol2) {
+		t.Error("identical solutions should be equal")
+	}
+	if sol1.Equal(sol3) {
+		t.Error("different values should not be equal")
+	}
+	if sol1.Equal(sol4) {
+		t.Error("different lengths should not be equal")
+	}
+}
+
+func TestIsVariable(t *testing.T) {
+	v := V("x")
+	if !IsVariable(v) {
+		t.Error("V() result should be a Variable")
+	}
+	if IsVariable([]byte("test")) {
+		t.Error("[]byte should not be a Variable")
+	}
+	if IsVariable("test") {
+		t.Error("string should not be a Variable")
+	}
+	if IsVariable(nil) {
+		t.Error("nil should not be a Variable")
+	}
+}
+
+func TestAsVariable(t *testing.T) {
+	v := V("x")
+	result, ok := AsVariable(v)
+	if !ok {
+		t.Error("AsVariable should succeed for Variable")
+	}
+	if result.Name != "x" {
+		t.Errorf("expected name 'x', got '%s'", result.Name)
+	}
+
+	result, ok = AsVariable([]byte("test"))
+	if ok {
+		t.Error("AsVariable should fail for []byte")
+	}
+	if result != nil {
+		t.Error("AsVariable should return nil for non-Variable")
+	}
+}
+
+func TestPattern_HasVariable(t *testing.T) {
+	p1 := &Pattern{Subject: []byte("a"), Predicate: []byte("b"), Object: []byte("c")}
+	if p1.HasVariable() {
+		t.Error("pattern without variables should return false")
+	}
+
+	p2 := &Pattern{Subject: V("x"), Predicate: []byte("b"), Object: []byte("c")}
+	if !p2.HasVariable() {
+		t.Error("pattern with subject variable should return true")
+	}
+
+	p3 := &Pattern{Subject: []byte("a"), Predicate: V("p"), Object: []byte("c")}
+	if !p3.HasVariable() {
+		t.Error("pattern with predicate variable should return true")
+	}
+
+	p4 := &Pattern{Subject: []byte("a"), Predicate: []byte("b"), Object: V("o")}
+	if !p4.HasVariable() {
+		t.Error("pattern with object variable should return true")
+	}
+}
+
+func TestPattern_VariableFields(t *testing.T) {
+	p := &Pattern{Subject: V("s"), Predicate: []byte("p"), Object: V("o")}
+	fields := p.VariableFields()
+
+	if len(fields) != 2 {
+		t.Errorf("expected 2 variable fields, got %d", len(fields))
+	}
+	if fields["subject"] == nil || fields["subject"].Name != "s" {
+		t.Error("subject variable not found")
+	}
+	if fields["object"] == nil || fields["object"].Name != "o" {
+		t.Error("object variable not found")
+	}
+	if fields["predicate"] != nil {
+		t.Error("predicate should not be in variable fields")
+	}
+}
+
+func TestPattern_ToTriple(t *testing.T) {
+	// Pattern with all concrete values
+	p1 := &Pattern{Subject: []byte("a"), Predicate: []byte("b"), Object: []byte("c")}
+	triple := p1.ToTriple()
+	if triple == nil {
+		t.Fatal("expected triple, got nil")
+	}
+	if string(triple.Subject) != "a" || string(triple.Predicate) != "b" || string(triple.Object) != "c" {
+		t.Error("triple values don't match pattern")
+	}
+
+	// Pattern with nil field
+	p2 := &Pattern{Subject: []byte("a"), Predicate: nil, Object: []byte("c")}
+	if p2.ToTriple() != nil {
+		t.Error("pattern with nil field should return nil")
+	}
+
+	// Pattern with variable
+	p3 := &Pattern{Subject: []byte("a"), Predicate: V("p"), Object: []byte("c")}
+	if p3.ToTriple() != nil {
+		t.Error("pattern with variable should return nil")
+	}
+}
+
+func TestDB_V(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	v := db.V("test")
+	if v == nil {
+		t.Fatal("V should return a Variable")
+	}
+	if v.Name != "test" {
+		t.Errorf("expected name 'test', got '%s'", v.Name)
+	}
+}
+
+func TestDB_IsOpen(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+
+	if !db.IsOpen() {
+		t.Error("database should be open")
+	}
+
+	cleanup()
+
+	if db.IsOpen() {
+		t.Error("database should be closed after cleanup")
+	}
+}
+
+func TestDB_GetIterator(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	t1 := NewTripleFromStrings("a", "b", "c")
+	t2 := NewTripleFromStrings("a", "b", "d")
+	db.Put(t1, t2)
+
+	iter, err := db.GetIterator(&Pattern{Subject: []byte("a")})
+	if err != nil {
+		t.Fatalf("GetIterator failed: %v", err)
+	}
+	defer iter.Release()
+
+	count := 0
+	for iter.Next() {
+		_, err := iter.Triple()
+		if err != nil {
+			t.Fatalf("Triple failed: %v", err)
+		}
+		count++
+	}
+	if err := iter.Error(); err != nil {
+		t.Fatalf("Iterator error: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2 triples, got %d", count)
+	}
+}
+
+func TestParseKey(t *testing.T) {
+	// Generate a key and parse it back
+	triple := NewTripleFromStrings("alice", "knows", "bob")
+	key := GenKey(IndexSPO, triple)
+
+	indexName, values := ParseKey(key)
+	if indexName != IndexSPO {
+		t.Errorf("expected index %s, got %s", IndexSPO, indexName)
+	}
+	if len(values) != 3 {
+		t.Fatalf("expected 3 values, got %d", len(values))
+	}
+	if string(values[0]) != "alice" {
+		t.Errorf("expected 'alice', got '%s'", values[0])
+	}
+	if string(values[1]) != "knows" {
+		t.Errorf("expected 'knows', got '%s'", values[1])
+	}
+	if string(values[2]) != "bob" {
+		t.Errorf("expected 'bob', got '%s'", values[2])
+	}
+
+	// Test empty key
+	indexName, values = ParseKey([]byte{})
+	if indexName != "" {
+		t.Error("empty key should return empty index name")
+	}
+	if len(values) != 0 {
+		t.Error("empty key should return empty values")
+	}
+}
+
+func TestNavigator_Triples(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	db.Put(
+		NewTripleFromStrings("alice", "knows", "bob"),
+		NewTripleFromStrings("bob", "knows", "charlie"),
+	)
+
+	// Use Where to add a pattern that binds subject, predicate, object
+	nav := db.Nav(nil).Where(&Pattern{
+		Subject:   V("s"),
+		Predicate: V("p"),
+		Object:    V("o"),
+	})
+	// Materialize the solutions into triples using the variable names
+	triples, err := nav.Triples(&Pattern{
+		Subject:   V("s"),
+		Predicate: V("p"),
+		Object:    V("o"),
+	})
+	if err != nil {
+		t.Fatalf("Triples failed: %v", err)
+	}
+	if len(triples) != 2 {
+		t.Errorf("expected 2 triples, got %d", len(triples))
+	}
+
+	// Empty navigator
+	emptyNav := &Navigator{db: db}
+	triples, err = emptyNav.Triples(&Pattern{})
+	if err != nil {
+		t.Fatalf("empty Triples failed: %v", err)
+	}
+	if triples != nil {
+		t.Error("empty navigator should return nil triples")
+	}
+}
+
+func TestNavigator_Filter(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	db.Put(
+		NewTripleFromStrings("alice", "age", "30"),
+		NewTripleFromStrings("bob", "age", "25"),
+	)
+
+	nav := db.Nav(nil)
+	nav.conditions = append(nav.conditions, &Pattern{Predicate: []byte("age"), Object: V("age")})
+	nav = nav.Filter(func(t *Triple) bool {
+		return string(t.Subject) == "alice"
+	})
+
+	solutions, err := nav.Solutions()
+	if err != nil {
+		t.Fatalf("Solutions failed: %v", err)
+	}
+	if len(solutions) != 1 {
+		t.Errorf("expected 1 solution after filter, got %d", len(solutions))
+	}
+}
+
+func TestNavigator_Where(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	db.Put(NewTripleFromStrings("alice", "knows", "bob"))
+
+	nav := db.Nav(nil).Where(&Pattern{
+		Subject:   V("s"),
+		Predicate: []byte("knows"),
+		Object:    V("o"),
+	})
+
+	solutions, err := nav.Solutions()
+	if err != nil {
+		t.Fatalf("Solutions failed: %v", err)
+	}
+	if len(solutions) != 1 {
+		t.Errorf("expected 1 solution, got %d", len(solutions))
+	}
+	if string(solutions[0]["s"]) != "alice" {
+		t.Errorf("expected s='alice', got '%s'", solutions[0]["s"])
+	}
+	if string(solutions[0]["o"]) != "bob" {
+		t.Errorf("expected o='bob', got '%s'", solutions[0]["o"])
+	}
+}
+
+func TestWithSortJoin(t *testing.T) {
+	dir, err := os.MkdirTemp("", "levelgraph-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+
+	db, err := Open(filepath.Join(dir, "test.db"), WithSortJoin())
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	// SortJoin option should be set
+	if db.options.JoinAlgorithm != "sort" {
+		t.Errorf("expected 'sort' join algorithm, got '%s'", db.options.JoinAlgorithm)
+	}
+}
+
+func TestJournalIterator_Key(t *testing.T) {
+	dir, err := os.MkdirTemp("", "levelgraph-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+
+	db, err := Open(filepath.Join(dir, "test.db"), WithJournal())
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	// Add a triple to create journal entry
+	db.Put(NewTripleFromStrings("a", "b", "c"))
+
+	iter, err := db.GetJournalIterator(time.Time{})
+	if err != nil {
+		t.Fatalf("GetJournalIterator failed: %v", err)
+	}
+	defer iter.Close()
+
+	if !iter.Next() {
+		t.Fatal("expected at least one journal entry")
+	}
+
+	key := iter.Key()
+	if key == nil {
+		t.Error("Key should not be nil")
+	}
+	if len(key) == 0 {
+		t.Error("Key should not be empty")
+	}
+}
+
+func TestGetTripleFacetIterator(t *testing.T) {
+	dir, err := os.MkdirTemp("", "levelgraph-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+
+	db, err := Open(filepath.Join(dir, "test.db"), WithFacets())
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	triple := NewTripleFromStrings("alice", "knows", "bob")
+	db.Put(triple)
+	db.SetTripleFacet(triple, []byte("since"), []byte("2020"))
+	db.SetTripleFacet(triple, []byte("strength"), []byte("strong"))
+
+	iter, err := db.GetTripleFacetIterator(triple)
+	if err != nil {
+		t.Fatalf("GetTripleFacetIterator failed: %v", err)
+	}
+	defer iter.Close()
+
+	count := 0
+	for iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+		if len(key) == 0 || value == nil {
+			t.Error("key and value should not be empty")
+		}
+		count++
+	}
+	if err := iter.Error(); err != nil {
+		t.Fatalf("Iterator error: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2 facets, got %d", count)
+	}
+}

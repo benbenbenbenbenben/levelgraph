@@ -70,15 +70,6 @@ func genJournalKey(ts time.Time) []byte {
 	return key
 }
 
-// parseJournalKey extracts the timestamp from a journal key.
-func parseJournalKey(key []byte) (time.Time, error) {
-	if len(key) < len(journalPrefix)+8 {
-		return time.Time{}, nil
-	}
-	nsec := binary.BigEndian.Uint64(key[len(journalPrefix):])
-	return time.Unix(0, int64(nsec)), nil
-}
-
 // recordJournalEntry adds a journal entry to the batch.
 func (db *DB) recordJournalEntry(batch *leveldb.Batch, op string, triple *Triple) error {
 	if !db.options.JournalEnabled {
