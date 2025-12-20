@@ -48,17 +48,32 @@ examples:
 # Run all checks before commit
 check: fmt vet test
 
-# Build WebAssembly module
+# Build WebAssembly module (standard Go)
 wasm:
 	GOOS=js GOARCH=wasm go build -o playground/levelgraph.wasm ./playground/wasm/
+
+# Build WebAssembly module with TinyGo (smaller binary)
+wasm-tinygo:
+	tinygo build -o playground/levelgraph-tinygo.wasm -target wasm ./playground/wasm/
 
 # Build and update playground (including wasm_exec.js)
 playground: wasm
 	@cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" playground/
 	@echo "Playground built. Run 'make serve' to start local server."
 
+# Build and update playground with TinyGo (smaller binary, ~60% size reduction)
+playground-tinygo: wasm-tinygo
+	@cp "$$(tinygo env TINYGOROOT)/targets/wasm_exec.js" playground/wasm_exec_tinygo.js
+	@echo "TinyGo playground built. Run 'make serve-tinygo' to start local server."
+
 # Serve playground locally for testing
 serve: playground
 	@echo "Starting local server at http://localhost:8080"
+	@echo "Press Ctrl+C to stop"
+	@cd playground && python3 -m http.server 8080
+
+# Serve TinyGo playground locally (uses smaller WASM binary)
+serve-tinygo: playground-tinygo
+	@echo "Starting local server at http://localhost:8080 (TinyGo build)"
 	@echo "Press Ctrl+C to stop"
 	@cd playground && python3 -m http.server 8080

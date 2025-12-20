@@ -2,6 +2,19 @@
 
 // State
 let wasmReady = false;
+let currentBuild = 'tinygo'; // default to smaller TinyGo build
+
+// WASM build configurations
+const wasmBuilds = {
+    tinygo: {
+        wasm: 'levelgraph-tinygo.wasm',
+        exec: 'wasm_exec_tinygo.js'
+    },
+    standard: {
+        wasm: 'levelgraph.wasm',
+        exec: 'wasm_exec.js'
+    }
+};
 
 // Example code snippets
 const examples = {
@@ -187,11 +200,16 @@ nav({ start: "backend", steps: [
 };
 
 // Initialize WASM
-async function initWasm() {
+async function initWasm(buildType = 'tinygo') {
+    currentBuild = buildType;
+    wasmReady = false;
+    setStatus(false, 'Loading WASM...');
+    
     try {
+        const build = wasmBuilds[buildType];
         const go = new Go();
         const result = await WebAssembly.instantiateStreaming(
-            fetch("levelgraph.wasm"),
+            fetch(build.wasm),
             go.importObject
         );
         go.run(result.instance);
@@ -209,6 +227,17 @@ async function initWasm() {
     } catch (err) {
         console.error("Failed to load WASM:", err);
         setStatus(false, "Failed to load: " + err.message);
+    }
+}
+
+// Switch WASM build (requires page reload to load different wasm_exec.js)
+function switchWasmBuild() {
+    const select = document.getElementById('wasmBuild');
+    const newBuild = select.value;
+    if (newBuild !== currentBuild) {
+        // Store preference and reload to load correct wasm_exec.js
+        localStorage.setItem('levelgraph-wasm-build', newBuild);
+        window.location.reload();
     }
 }
 
@@ -402,5 +431,16 @@ document.getElementById("editor").addEventListener("keydown", function(e) {
 
 // Initialize
 document.addEventListener("DOMContentLoaded", function() {
-    initWasm();
+    // Get saved preference or default to tinygo
+    const savedBuild = localStorage.getItem('levelgraph-wasm-build') || 'tinygo';
+    currentBuild = savedBuild;
+    
+    // Update dropdown to match
+    const select = document.getElementById('wasmBuild');
+    if (select) {
+        select.value = savedBuild;
+    }
+    
+    // Initialize with the selected build
+    initWasm(savedBuild);
 });

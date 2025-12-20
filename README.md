@@ -458,8 +458,11 @@ LevelGraph can be compiled to WebAssembly and run directly in the browser. A pla
 ### Building the Playground
 
 ```bash
-# Build WASM module and start local server
+# Build WASM module and start local server (standard Go, 3.8MB)
 make serve
+
+# Build with TinyGo for smaller binary (1.5MB, ~60% smaller)
+make serve-tinygo
 ```
 
 Then open http://localhost:8080 in your browser.
@@ -467,10 +470,15 @@ Then open http://localhost:8080 in your browser.
 ### Makefile Targets
 
 ```bash
-make wasm        # Build WASM module only
-make playground  # Build WASM + copy wasm_exec.js
-make serve       # Build and start local server
+make wasm             # Build WASM module (standard Go)
+make wasm-tinygo      # Build WASM module (TinyGo, smaller)
+make playground       # Build WASM + copy wasm_exec.js
+make playground-tinygo # Build TinyGo WASM + copy wasm_exec_tinygo.js
+make serve            # Build and start local server
+make serve-tinygo     # Build TinyGo version and start server
 ```
+
+The playground UI allows switching between builds via a dropdown menu.
 
 ### WASM API
 

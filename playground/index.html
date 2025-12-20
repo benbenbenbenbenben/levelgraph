@@ -314,10 +314,23 @@ search([
             <span class="status-dot" id="statusDot"></span>
             <span id="statusText">Loading WASM...</span>
         </div>
-        <div>LevelGraph Go - In-Memory Graph Database</div>
+        <div>
+            <select id="wasmBuild" onchange="switchWasmBuild()">
+                <option value="tinygo">TinyGo (1.5MB)</option>
+                <option value="standard">Standard Go (3.7MB)</option>
+            </select>
+            LevelGraph - In-Memory Graph Database
+        </div>
     </div>
 
-    <script src="wasm_exec.js"></script>
+    <script>
+        // Dynamically load the correct wasm_exec.js based on saved preference
+        (function() {
+            const savedBuild = localStorage.getItem('levelgraph-wasm-build') || 'tinygo';
+            const execScript = savedBuild === 'tinygo' ? 'wasm_exec_tinygo.js' : 'wasm_exec.js';
+            document.write('<script src="' + execScript + '"><\/script>');
+        })();
+    </script>
     <script src="playground.js"></script>
 </body>
 </html>
