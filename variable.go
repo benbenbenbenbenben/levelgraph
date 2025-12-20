@@ -26,15 +26,35 @@ package levelgraph
 
 import "bytes"
 
-// Variable represents a named variable used in query patterns for binding.
-// When searching, variables can match any value and the matches are
-// collected into a Solution map.
+// Variable represents a named query placeholder used in pattern matching.
+// When used in a Pattern, a Variable will match any value and capture it
+// into the resulting Solution map under its name.
+//
+// Despite its name, this is conceptually a "binding" or "placeholder" rather
+// than a mutable variable. Once bound in a solution, the value is immutable.
+// The name follows the original JavaScript LevelGraph API for compatibility.
+//
+// For a more descriptive API, consider using the type-safe PatternValue
+// with Binding("name") instead. See pattern_typed.go for details.
 type Variable struct {
-	Name string
+	// Name is the identifier for this binding in the Solution map.
+	Name string `json:"name"`
 }
+
+// Var is an alias for Variable, providing a shorter name for those who prefer it.
+// Usage: pattern.Subject = levelgraph.Var("x")
+type Var = Variable
 
 // V creates a new Variable with the given name.
 // This is the primary constructor and mimics the db.v("name") pattern from JS.
+//
+// Example:
+//
+//	pattern := &Pattern{
+//	    Subject:   []byte("alice"),
+//	    Predicate: []byte("knows"),
+//	    Object:    V("friend"),  // Captures matched object as "friend"
+//	}
 func V(name string) *Variable {
 	return &Variable{Name: name}
 }

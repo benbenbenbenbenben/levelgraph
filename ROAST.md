@@ -26,22 +26,24 @@ The explicit magic strings are gone! Now we use `strconv.FormatBool` like proper
 
 ---
 
-### 2. The `interface{}` Epidemic
+### 2. The `interface{}` Epidemic (ADDRESSED)
 
 ```go
+// Old way (still works)
 type Pattern struct {
-    Subject   interface{}  // nil, []byte, or *Variable
-    Predicate interface{}
-    Object    interface{}
+    Subject   interface{}
+    ...
 }
+
+// New way (type-safe!)
+pattern := NewTypedPattern(
+    ExactString("alice"),
+    ExactString("knows"),
+    Binding("friend"),
+)
 ```
 
-"What type is Subject?"
-"Yes."
-
-You're writing Go, a language celebrated for its type safety, and you responded with "hold my beer". Sure, `interface{}` was the only way to do this before generics, but we've had generics since Go 1.18. We're on Go 1.25 now. That's like still having a flip phone when everyone else is on iPhone 47.
-
-I'm not mad, I'm just... _disappointed_.
+We've added `TypedPattern` with `PatternValue` for the generics era! The old `Pattern` still works for backward compatibility, but now you can use `Exact()`, `Wildcard()`, and `Binding()` for type-safe queries. Progress! 🎉
 
 ---
 
@@ -91,15 +93,19 @@ Optional logging via `WithLogger()` is now supported.
 
 ---
 
-### 9. Variable Variables
+### 9. Variable Variables (IMPROVED)
 
 ```go
+// Now with better docs and a Var alias!
 type Variable struct {
-    Name string
+    Name string `json:"name"`
 }
+
+// For those who prefer shorter names:
+type Var = Variable
 ```
 
-Naming things is hard. You chose to make it harder.
+The naming is still "Variable" for JavaScript API compatibility, but we've added a `Var` type alias, improved documentation explaining it's really a "binding" or "placeholder", and added JSON tags. Plus, you can now use `Binding("x")` with `TypedPattern` for even clearer intent.
 
 ---
 

@@ -102,7 +102,7 @@ Memory-efficient iteration for large result sets. Consistently used across the l
 
 ### ⚠️ Areas of Concern
 
-1. **`interface{}` in Patterns**: Still used for flexibility. Consider generics for v2.
+1. **`interface{}` in Patterns**: (ADDRESSED) Type-safe `TypedPattern` with `PatternValue` now available as alternative. Original `Pattern` kept for backward compatibility.
 
 2. **Missing Struct Tags**: (ADDRESSED) JSON tags added to exported structs including `BatchOp`.
 

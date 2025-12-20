@@ -138,7 +138,7 @@ Yet `variable.go` reimplements `bytesEqual`. Inconsistent use of stdlib.
 ### The Nitpicks
 
 1. **Copyright dates inconsistent**: (FIXED) LICENSE now says "2013-2025" matching README.
-2. **README benchmark numbers look stale** — Consider adding `go generate` for benchmark updates
+2. **README benchmark numbers look stale**: (ADDRESSED) Added `make bench-update` and `make bench-readme` targets.
 3. **No Makefile**: (RESOLVED)
 
 ---
