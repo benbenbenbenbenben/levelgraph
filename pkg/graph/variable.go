@@ -62,9 +62,17 @@ func V(name string) *Variable {
 // Bind attempts to bind this variable to a value within a solution.
 // If the variable is already bound to a different value, it returns nil (no match).
 // If the variable is unbound or bound to the same value, it returns the updated solution.
+//
+// Note: This creates a new Solution map. For performance-critical paths where
+// the solution won't be reused, consider using BindInPlace instead.
 func (v *Variable) Bind(solution Solution, value []byte) Solution {
-	if !v.IsBindable(solution, value) {
-		return nil
+	existing, exists := solution[v.Name]
+	if exists {
+		// Already bound - check if same value
+		if bytes.Equal(existing, value) {
+			return solution // Return same solution, no allocation needed
+		}
+		return nil // Conflict
 	}
 
 	// Create a new solution with the binding
@@ -74,6 +82,18 @@ func (v *Variable) Bind(solution Solution, value []byte) Solution {
 	}
 	newSolution[v.Name] = value
 	return newSolution
+}
+
+// BindInPlace binds a value to this variable in the given solution, mutating it.
+// Returns false if the variable is already bound to a different value.
+// This is more efficient than Bind when the solution won't be reused.
+func (v *Variable) BindInPlace(solution Solution, value []byte) bool {
+	existing, exists := solution[v.Name]
+	if exists {
+		return bytes.Equal(existing, value)
+	}
+	solution[v.Name] = value
+	return true
 }
 
 // IsBound returns true if this variable is already bound in the solution.
@@ -109,6 +129,20 @@ func (s Solution) Clone() Solution {
 	clone := make(Solution, len(s))
 	for k, v := range s {
 		clone[k] = append([]byte(nil), v...)
+	}
+	return clone
+}
+
+// ShallowClone creates a shallow copy of the solution (shares byte slice references).
+// This is faster than Clone but the caller must not modify the byte slices.
+// Use this when you need a new map but won't mutate the values.
+func (s Solution) ShallowClone() Solution {
+	if s == nil {
+		return nil
+	}
+	clone := make(Solution, len(s))
+	for k, v := range s {
+		clone[k] = v
 	}
 	return clone
 }

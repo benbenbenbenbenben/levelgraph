@@ -158,7 +158,8 @@ func (db *DB) Search(ctx context.Context, patterns []*Pattern, opts *SearchOptio
 		default:
 		}
 
-		var newSolutions []graph.Solution
+		// Pre-allocate with estimated capacity to reduce slice growth
+		newSolutions := make([]graph.Solution, 0, len(solutions)*4)
 
 		for _, solution := range solutions {
 			// Update the pattern with bound variables from the current solution
@@ -172,7 +173,8 @@ func (db *DB) Search(ctx context.Context, patterns []*Pattern, opts *SearchOptio
 
 			// Bind each matching triple to the solution
 			for _, triple := range triples {
-				newSolution := pattern.BindTriple(solution, triple)
+				// Use optimized binding that avoids deep copies
+				newSolution := pattern.BindTripleFast(solution, triple)
 				if newSolution != nil {
 					// Apply pattern-level filter if present
 					if pattern.Filter == nil || pattern.Filter(triple) {
@@ -403,7 +405,8 @@ func (si *SolutionIterator) advance() graph.Solution {
 				return nil
 			}
 
-			newSolution := si.patterns[level].BindTriple(si.solutions[level], triple)
+			// Use optimized binding that avoids deep copies
+			newSolution := si.patterns[level].BindTripleFast(si.solutions[level], triple)
 			if newSolution == nil {
 				continue
 			}

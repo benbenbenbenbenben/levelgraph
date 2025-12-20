@@ -358,3 +358,52 @@ func (p *Pattern) BindTriple(solution Solution, triple *Triple) Solution {
 
 	return newSolution
 }
+
+// BindTripleFast is an optimized version of BindTriple that uses shallow cloning.
+// It creates a new solution map but shares byte slice references with the input.
+// This is safe because triple values from the database are not modified.
+func (p *Pattern) BindTripleFast(solution Solution, triple *Triple) Solution {
+	// Use shallow clone - we're only adding new bindings, not modifying existing values
+	newSolution := solution.ShallowClone()
+	if newSolution == nil {
+		newSolution = make(Solution)
+	}
+
+	// Check and bind subject
+	if p.Subject.IsBinding() {
+		v := p.Subject.variable
+		if !v.BindInPlace(newSolution, triple.Subject) {
+			return nil
+		}
+	} else if p.Subject.IsExact() {
+		if !bytes.Equal(p.Subject.data, triple.Subject) {
+			return nil
+		}
+	}
+
+	// Check and bind predicate
+	if p.Predicate.IsBinding() {
+		v := p.Predicate.variable
+		if !v.BindInPlace(newSolution, triple.Predicate) {
+			return nil
+		}
+	} else if p.Predicate.IsExact() {
+		if !bytes.Equal(p.Predicate.data, triple.Predicate) {
+			return nil
+		}
+	}
+
+	// Check and bind object
+	if p.Object.IsBinding() {
+		v := p.Object.variable
+		if !v.BindInPlace(newSolution, triple.Object) {
+			return nil
+		}
+	} else if p.Object.IsExact() {
+		if !bytes.Equal(p.Object.data, triple.Object) {
+			return nil
+		}
+	}
+
+	return newSolution
+}
