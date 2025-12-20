@@ -2074,3 +2074,92 @@ func TestDB_AsyncAutoEmbedIntegrationWithSearch(t *testing.T) {
 		t.Errorf("First result = %s, want tennis", results[0].Parts[0])
 	}
 }
+
+// TestDB_SearchSimilarSubjects tests the SearchSimilarSubjects function.
+func TestDB_SearchSimilarSubjects(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	db, err := Open(dbPath, WithVectors(index))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Add graph data
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "knows", "bob"))
+	db.Put(ctx, graph.NewTripleFromStrings("carol", "knows", "david"))
+	db.Put(ctx, graph.NewTripleFromStrings("eve", "knows", "frank"))
+
+	// Add vectors for subjects and objects
+	db.SetSubjectVector(ctx, []byte("alice"), []float32{1, 0, 0})
+	db.SetSubjectVector(ctx, []byte("carol"), []float32{0.9, 0.1, 0})
+	db.SetSubjectVector(ctx, []byte("eve"), []float32{0, 1, 0})
+	db.SetObjectVector(ctx, []byte("bob"), []float32{0.5, 0.5, 0})
+	db.SetObjectVector(ctx, []byte("david"), []float32{0.5, 0.5, 0})
+
+	// Search for subjects similar to alice
+	results, err := db.SearchSimilarSubjects(ctx, []float32{1, 0, 0}, 2)
+	if err != nil {
+		t.Fatalf("SearchSimilarSubjects() error = %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("SearchSimilarSubjects() returned %d results, want 2", len(results))
+	}
+
+	// Verify all results are subjects
+	for _, r := range results {
+		if r.IDType != vector.IDTypeSubject {
+			t.Errorf("Expected IDTypeSubject, got %v", r.IDType)
+		}
+	}
+
+	// First result should be alice (exact match)
+	if string(results[0].Parts[0]) != "alice" {
+		t.Errorf("First result = %s, want alice", results[0].Parts[0])
+	}
+
+	// Second result should be carol (similar)
+	if string(results[1].Parts[0]) != "carol" {
+		t.Errorf("Second result = %s, want carol", results[1].Parts[0])
+	}
+}
+
+// TestDB_SearchSimilarSubjects_NoSubjects tests SearchSimilarSubjects when no subjects have vectors.
+func TestDB_SearchSimilarSubjects_NoSubjects(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	db, err := Open(dbPath, WithVectors(index))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Add graph data
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "knows", "bob"))
+
+	// Only add object vectors, no subject vectors
+	db.SetObjectVector(ctx, []byte("bob"), []float32{1, 0, 0})
+
+	// Search for subjects - should return empty since no subject vectors exist
+	results, err := db.SearchSimilarSubjects(ctx, []float32{1, 0, 0}, 5)
+	if err != nil {
+		t.Fatalf("SearchSimilarSubjects() error = %v", err)
+	}
+
+	if len(results) != 0 {
+		t.Errorf("SearchSimilarSubjects() returned %d results, want 0", len(results))
+	}
+}

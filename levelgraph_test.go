@@ -2845,3 +2845,125 @@ func TestNavigator_normalizeValue_EdgeCases(t *testing.T) {
 		t.Errorf("expected 1 solution with empty string predicate, got %d", len(solutions))
 	}
 }
+
+func TestCloseGracefully(t *testing.T) {
+	t.Parallel()
+
+	t.Run("normal close", func(t *testing.T) {
+		db, cleanup := setupTestDB(t)
+		defer cleanup()
+
+		// Add some data
+		db.Put(context.Background(), graph.NewTripleFromStrings("alice", "knows", "bob"))
+
+		// Close gracefully
+		ctx := context.Background()
+		if err := db.CloseGracefully(ctx); err != nil {
+			t.Fatalf("CloseGracefully failed: %v", err)
+		}
+
+		// Verify database is closed
+		if db.IsOpen() {
+			t.Error("database should be closed after CloseGracefully")
+		}
+	})
+
+	t.Run("close already closed", func(t *testing.T) {
+		db, cleanup := setupTestDB(t)
+		defer cleanup()
+
+		// Close once
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close failed: %v", err)
+		}
+
+		// CloseGracefully on already closed should succeed
+		ctx := context.Background()
+		if err := db.CloseGracefully(ctx); err != nil {
+			t.Fatalf("CloseGracefully on closed db should succeed, got: %v", err)
+		}
+	})
+
+	t.Run("cancelled context", func(t *testing.T) {
+		db, cleanup := setupTestDB(t)
+		defer cleanup()
+
+		// Create an already-cancelled context
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		err := db.CloseGracefully(ctx)
+		if err == nil {
+			t.Fatal("CloseGracefully with cancelled context should return error")
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("expected context.Canceled error, got: %v", err)
+		}
+
+		// Database should still be open since close was aborted
+		if !db.IsOpen() {
+			t.Error("database should still be open after cancelled close")
+		}
+	})
+}
+
+func TestWithDefaultLimit(t *testing.T) {
+	t.Parallel()
+
+	tmpDir, err := os.MkdirTemp("", "levelgraph_test_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "db")
+
+	// Open with default limit
+	db, err := Open(dbPath, WithDefaultLimit(2))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	// Add more data than the limit
+	db.Put(context.Background(),
+		graph.NewTripleFromStrings("a", "knows", "b"),
+		graph.NewTripleFromStrings("b", "knows", "c"),
+		graph.NewTripleFromStrings("c", "knows", "d"),
+		graph.NewTripleFromStrings("d", "knows", "e"),
+	)
+
+	// Search without explicit limit - should use default (applied per-pattern)
+	results, err := db.Search(context.Background(), []*Pattern{
+		{
+			Subject:   graph.Binding("x"),
+			Predicate: graph.ExactString("knows"),
+			Object:    graph.Binding("y"),
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("Search failed: %v", err)
+	}
+
+	// Default limit of 2 is applied per-pattern, so we get at most 2 results
+	if len(results) != 2 {
+		t.Errorf("expected 2 results with default limit, got %d", len(results))
+	}
+
+	// Search with explicit SearchOptions limit of 1 - should further restrict results
+	results, err = db.Search(context.Background(), []*Pattern{
+		{
+			Subject:   graph.Binding("x"),
+			Predicate: graph.ExactString("knows"),
+			Object:    graph.Binding("y"),
+		},
+	}, &SearchOptions{Limit: 1})
+	if err != nil {
+		t.Fatalf("Search failed: %v", err)
+	}
+
+	// SearchOptions.Limit of 1 should further reduce the results
+	if len(results) != 1 {
+		t.Errorf("expected 1 result with explicit limit=1, got %d", len(results))
+	}
+}
