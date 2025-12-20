@@ -1,4 +1,4 @@
-.PHONY: test bench bench-update lint fmt vet clean examples check wasm playground serve
+.PHONY: test bench bench-update lint fmt vet clean examples check wasm playground serve build
 
 # Run tests with race detector
 test:
@@ -48,16 +48,22 @@ examples:
 # Run all checks before commit
 check: fmt vet test
 
+# Build CLI tool
+build:
+	go build -o levelgraph ./cmd/levelgraph
+
 # Build WebAssembly module (standard Go)
 wasm:
-	GOOS=js GOARCH=wasm go build -o playground/levelgraph.wasm ./playground/wasm/
+	GOOS=js GOARCH=wasm go build -o levelgraph.wasm ./cmd/wasm/
 
 # Build WebAssembly module with TinyGo (smaller binary)
 wasm-tinygo:
-	tinygo build -o playground/levelgraph-tinygo.wasm -target wasm ./playground/wasm/
+	tinygo build -o levelgraph.wasm -target wasm ./cmd/wasm/
 
 # Build and update playground (including wasm_exec.js)
 playground: wasm
+	@mkdir -p playground
+	@cp levelgraph.wasm playground/
 	@cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" playground/
 	@echo "Playground built. Run 'make serve' to start local server."
 
@@ -77,3 +83,15 @@ serve-tinygo: playground-tinygo
 	@echo "Starting local server at http://localhost:8080 (TinyGo build)"
 	@echo "Press Ctrl+C to stop"
 	@cd playground && python3 -m http.server 8080
+
+# Show help
+help:
+	@echo "Available targets:"
+	@echo "  build        - Build CLI tool"
+	@echo "  test         - Run tests with race detector"
+	@echo "  bench        - Run benchmarks"
+	@echo "  wasm         - Build WebAssembly module"
+	@echo "  playground   - Build and setup playground"
+	@echo "  serve        - Serve playground locally"
+	@echo "  check        - Run fmt, vet, and test"
+	@echo "  clean        - Clean build artifacts"
