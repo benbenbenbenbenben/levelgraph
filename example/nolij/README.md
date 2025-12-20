@@ -17,18 +17,18 @@ nolij <command> [arguments]
 
 ### Commands
 
-| Command | Description |
-|---------|-------------|
-| `add <s> <p> <o>` | Add a triple to the graph |
-| `del <s> <p> <o>` | Delete a triple from the graph |
-| `find <s> <p> <o>` | Search for triples (use `?` or `*` as wildcard) |
-| `from <node>` | Follow all edges from a node |
-| `path <start> <end>` | Find shortest path between two nodes (BFS) |
-| `join <s1> <p1> <o1> <s2> <p2> <o2>` | Join two patterns using variables |
-| `sync` | Index markdown files in current directory |
-| `stats` | Show database statistics |
-| `dump` | Print all triples in the database |
-| `nuke` | Delete the database (with confirmation) |
+| Command                              | Description                                     |
+| ------------------------------------ | ----------------------------------------------- |
+| `add <s> <p> <o>`                    | Add a triple to the graph                       |
+| `del <s> <p> <o>`                    | Delete a triple from the graph                  |
+| `find <s> <p> <o>`                   | Search for triples (use `?` or `*` as wildcard) |
+| `from <node>`                        | Follow all edges from a node                    |
+| `path <start> <end>`                 | Find shortest path between two nodes (BFS)      |
+| `join <s1> <p1> <o1> <s2> <p2> <o2>` | Join two patterns using variables               |
+| `sync`                               | Index markdown files in current directory       |
+| `stats`                              | Show database statistics                        |
+| `dump`                               | Print all triples in the database               |
+| `nuke`                               | Delete the database (with confirmation)         |
 
 ## Examples
 
@@ -56,21 +56,22 @@ nolij path alice london
 #   [alice] -knows-> [bob] -works_at-> [acme] -located_in-> [london]
 ```
 
-### Join Queries with Variables
+### Join Queries
 
-Use `$varname` to create join variables that connect patterns:
+Use `:varname` to create join variables that connect patterns:
 
 ```bash
 # Find files that contain bash code blocks
-nolij join 'file:README.md' '$pred' '$block' '$block' 'codeblock:has meta:raw' 'bash'
+nolij join file:README.md :pred :block :block 'codeblock:has meta:raw' bash
 
 # Find all files and their code block languages
-nolij join '$file' '$pred' '$block' '$block' 'codeblock:has meta:raw' '$lang'
+nolij join :file :pred :block :block 'codeblock:has meta:raw' :lang
 ```
 
 ### Markdown Sync
 
 The `sync` command indexes markdown files, extracting:
+
 - File metadata (SHA256 hash for change detection)
 - Markdown links with line/column positions
 - Fenced code blocks with language info
@@ -113,7 +114,7 @@ nolij find nolij:root contains:file ?
 nolij find file:README.md 'text:links:*' ?
 
 # Find files containing Go code
-nolij join '$file' '$p' '$block' '$block' 'codeblock:has meta:raw' 'go'
+nolij join :file :p :block :block 'codeblock:has meta:raw' go
 
 # Database overview
 nolij stats

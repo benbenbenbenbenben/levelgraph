@@ -2,8 +2,8 @@
 package main
 
 import (
-	"context"
 	"bufio"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -50,7 +50,7 @@ func main() {
 		cmdDump()
 	case "nuke":
 		cmdNuke()
-// TODO: case "install": // install to the users bin path (any OS!) - needs docs etc too
+		// TODO: case "install": // install to the users bin path (any OS!) - needs docs etc too
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 		printHelp()
@@ -69,7 +69,7 @@ Commands:
   find <s> <p> <o>                     Search (use ? or * as wildcard)
   from <node>                          Follow all edges from a node
   path <start> <end>                   Find path between two nodes (BFS)
-  join <s1> <p1> <o1> <s2> <p2> <o2>   Join two patterns (use $var for variables)
+  join <s1> <p1> <o1> <s2> <p2> <o2>   Join two patterns (use :var for variables)
   sync                                 Index markdown files in current directory
   stats                                Show database statistics
   dump                                 Print all triples
@@ -83,7 +83,7 @@ Examples:
   nolij find ? knows ?                 # Find all "knows" relationships
   nolij from alice                     # Follow edges from alice
   nolij path alice london              # Find path from alice to london
-  nolij join file:README.md '$p' '$b' '$b' "codeblock:has meta:raw" bash
+  nolij join file:README.md :p :b :b "codeblock:has meta:raw" bash
   nolij sync                           # Index .md files
 
 The database is stored in .nolij.db/ in the current directory.`)
@@ -291,8 +291,8 @@ func cmdPath(args []string) {
 func cmdJoin(args []string) {
 	if len(args) != 6 {
 		fmt.Println("Usage: nolij join <s1> <p1> <o1> <s2> <p2> <o2>")
-		fmt.Println("Use $varname for variables to join on")
-		fmt.Println("Example: nolij join file:README.md '$p' '$block' '$block' \"codeblock:has meta:raw\" bash")
+		fmt.Println("Use :varname for variables to join on")
+		fmt.Println("Example: nolij join file:README.md :p :block :block \"codeblock:has meta:raw\" bash")
 		os.Exit(1)
 	}
 
@@ -303,9 +303,9 @@ func cmdJoin(args []string) {
 	}
 	defer db.Close()
 
-	// Parse patterns - $var becomes a Variable, else concrete value or wildcard
+	// Parse patterns - :var becomes a Variable, else concrete value or wildcard
 	parseValue := func(s string) interface{} {
-		if strings.HasPrefix(s, "$") {
+		if strings.HasPrefix(s, ":") {
 			return levelgraph.V(s[1:])
 		}
 		if s == "?" || s == "*" {
