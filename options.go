@@ -24,7 +24,11 @@
 
 package levelgraph
 
-import "log/slog"
+import (
+	"log/slog"
+
+	"github.com/benbenbenbenbenben/levelgraph/vector"
+)
 
 // JoinAlgorithm represents the algorithm used for joining patterns in searches.
 type JoinAlgorithm string
@@ -36,12 +40,17 @@ const (
 	JoinAlgorithmSort JoinAlgorithm = "sort"
 )
 
+// Options configures a LevelGraph database.
 type Options struct {
 	// JournalEnabled enables the journalling feature for write operations.
 	JournalEnabled bool
 
 	// FacetsEnabled enables the facets/properties feature.
 	FacetsEnabled bool
+
+	// VectorIndex is an optional vector similarity index for semantic search.
+	// When set, vector operations (SetVector, GetVector, SearchVectors) are enabled.
+	VectorIndex vector.Index
 
 	// JoinAlgorithm specifies which join algorithm to use for searches.
 	// Defaults to JoinAlgorithmSort.
@@ -55,6 +64,24 @@ type Options struct {
 	// When set to a positive value, this limit is applied if no explicit limit is provided.
 	// 0 means no default limit (unbounded, the default for backward compatibility).
 	DefaultLimit int
+
+	// Embedder is an optional text embedder for automatic vector generation.
+	// When set along with AutoEmbedTargets, vectors are automatically created
+	// when triples are added.
+	Embedder Embedder
+
+	// AutoEmbedTargets specifies which triple components should be auto-embedded.
+	// Only used when Embedder is set.
+	AutoEmbedTargets AutoEmbedTarget
+
+	// AsyncAutoEmbed enables non-blocking auto-embedding.
+	// When enabled, embedding is performed in a background goroutine instead of
+	// blocking the Put() call. Use WaitForEmbeddings() to wait for pending work.
+	AsyncAutoEmbed bool
+
+	// AsyncEmbedBufferSize sets the buffer size for the async embed queue.
+	// Defaults to 100 if not set. Only used when AsyncAutoEmbed is true.
+	AsyncEmbedBufferSize int
 }
 
 // Option is a function that configures Options.
@@ -129,5 +156,90 @@ func WithLogger(l *slog.Logger) Option {
 func WithDefaultLimit(limit int) Option {
 	return func(o *Options) {
 		o.DefaultLimit = limit
+	}
+}
+
+// WithVectors enables vector similarity search with the provided index.
+// Use vector.NewFlatIndex for exact search or vector.NewHNSWIndex for
+// approximate nearest neighbor search.
+//
+// Example:
+//
+//	db, err := levelgraph.Open("/path/to/db",
+//	    levelgraph.WithVectors(vector.NewHNSWIndex(192)),
+//	)
+func WithVectors(index vector.Index) Option {
+	return func(o *Options) {
+		o.VectorIndex = index
+	}
+}
+
+// Embedder is an interface for text embedding models.
+// Implementations convert text to vector representations for semantic search.
+type Embedder interface {
+	// Embed converts a single text string to a vector embedding.
+	Embed(text string) ([]float32, error)
+
+	// EmbedBatch converts multiple texts to vector embeddings.
+	// Implementations may optimize batch processing.
+	EmbedBatch(texts []string) ([][]float32, error)
+
+	// Dimensions returns the dimensionality of the embeddings.
+	Dimensions() int
+}
+
+// AutoEmbedTarget specifies which parts of triples should be automatically embedded.
+type AutoEmbedTarget int
+
+const (
+	// AutoEmbedNone disables automatic embedding.
+	AutoEmbedNone AutoEmbedTarget = 0
+	// AutoEmbedSubjects enables automatic embedding of subject values.
+	AutoEmbedSubjects AutoEmbedTarget = 1 << iota
+	// AutoEmbedPredicates enables automatic embedding of predicate values.
+	AutoEmbedPredicates
+	// AutoEmbedObjects enables automatic embedding of object values.
+	AutoEmbedObjects
+	// AutoEmbedAll enables automatic embedding of all triple components.
+	AutoEmbedAll = AutoEmbedSubjects | AutoEmbedPredicates | AutoEmbedObjects
+)
+
+// WithAutoEmbed enables automatic vector embedding when triples are added.
+// Requires both an Embedder and a VectorIndex to be configured.
+//
+// Example:
+//
+//	db, err := levelgraph.Open("/path/to/db",
+//	    levelgraph.WithVectors(vector.NewHNSWIndex(192)),
+//	    levelgraph.WithAutoEmbed(myEmbedder, levelgraph.AutoEmbedObjects),
+//	)
+func WithAutoEmbed(embedder Embedder, targets AutoEmbedTarget) Option {
+	return func(o *Options) {
+		o.Embedder = embedder
+		o.AutoEmbedTargets = targets
+	}
+}
+
+// WithAsyncAutoEmbed enables non-blocking auto-embedding with the specified buffer size.
+// When enabled, embedding is performed in a background goroutine instead of blocking
+// the Put() call. This is useful when using real embedding models that have latency.
+//
+// Use WaitForEmbeddings() to block until all pending embeddings are complete.
+// The buffer size determines how many embedding requests can be queued before Put()
+// blocks waiting for the queue to drain.
+//
+// Example:
+//
+//	db, err := levelgraph.Open("/path/to/db",
+//	    levelgraph.WithVectors(vector.NewHNSWIndex(192)),
+//	    levelgraph.WithAutoEmbed(myEmbedder, levelgraph.AutoEmbedObjects),
+//	    levelgraph.WithAsyncAutoEmbed(100),
+//	)
+//	// ... add triples ...
+//	db.WaitForEmbeddings(ctx) // Wait for all embeddings to complete
+func WithAsyncAutoEmbed(bufferSize int) Option {
+	return func(o *Options) {
+		o.AsyncAutoEmbed = true
+		o.AsyncEmbedBufferSize = bufferSize
 	}
 }

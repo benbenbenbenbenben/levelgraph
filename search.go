@@ -26,7 +26,82 @@ package levelgraph
 
 import (
 	"context"
+	"sort"
+
+	"github.com/benbenbenbenbenben/levelgraph/vector"
 )
+
+// VectorFilter specifies how to filter search results using vector similarity.
+// It allows hybrid queries that combine graph traversal with semantic search.
+//
+// # How Hybrid Search Works
+//
+// Hybrid search executes in two phases:
+//  1. Graph phase: Executes patterns to find matching solutions (like regular Search)
+//  2. Vector phase: Scores and filters solutions based on vector similarity
+//
+// The Variable field specifies which solution variable to look up in the vector index.
+// For example, if your pattern binds ?topic, and you have vectors stored for topics,
+// set Variable: "topic" to score solutions by topic similarity.
+//
+// # Score Interpretation
+//
+// Scores are normalized to [0, 1] range:
+//   - 1.0: Identical vectors (perfect match)
+//   - 0.7-0.9: Highly similar (typically good matches)
+//   - 0.5-0.7: Moderately similar
+//   - 0.0-0.5: Dissimilar
+//
+// Use MinScore to filter out low-quality matches.
+//
+// # Example: Find People Who Like Similar Topics
+//
+//	solutions, err := db.Search(ctx, []*Pattern{
+//	    {Subject: V("person"), Predicate: []byte("likes"), Object: V("topic")},
+//	}, &SearchOptions{
+//	    VectorFilter: &VectorFilter{
+//	        Variable:  "topic",
+//	        QueryText: "machine learning",  // Requires configured Embedder
+//	        TopK:      10,                   // Limit to top 10 similar topics
+//	        MinScore:  0.7,                  // Filter out scores below 0.7
+//	        IDType:    vector.IDTypeObject, // Look up topic as object vector
+//	    },
+//	})
+//
+// # Example: Vector Search with Precomputed Query
+//
+//	queryVec := embedder.Embed("artificial intelligence")
+//	solutions, err := db.Search(ctx, patterns, &SearchOptions{
+//	    VectorFilter: &VectorFilter{
+//	        Variable: "topic",
+//	        Query:    queryVec,  // Use precomputed vector
+//	        TopK:     10,
+//	    },
+//	})
+type VectorFilter struct {
+	// Variable is the name of the variable to filter by vector similarity.
+	// The variable's value will be used to look up vectors in the index.
+	Variable string
+
+	// Query is the query vector to compare against.
+	Query []float32
+
+	// QueryText is an optional text query that will be embedded using the
+	// configured Embedder. Either Query or QueryText should be set, not both.
+	QueryText string
+
+	// TopK limits results to the K most similar values for the variable.
+	// If 0, all solutions are kept but scored/sorted.
+	TopK int
+
+	// MinScore filters out solutions where the similarity score is below this threshold.
+	// Score is in range [0, 1] for cosine similarity (after normalization).
+	MinScore float32
+
+	// IDType specifies the type of vector ID to look up (e.g., IDTypeObject).
+	// If empty, defaults to IDTypeObject.
+	IDType vector.IDType
+}
 
 // SearchOptions configures search behavior.
 type SearchOptions struct {
@@ -42,6 +117,9 @@ type SearchOptions struct {
 	Materialized *Pattern
 	// InitialSolution is an optional starting solution with pre-bound variables
 	InitialSolution Solution
+	// VectorFilter enables hybrid search by filtering/ranking solutions based
+	// on vector similarity of a bound variable.
+	VectorFilter *VectorFilter
 }
 
 // Search executes a search query with one or more patterns.
@@ -118,6 +196,15 @@ func (db *DB) Search(ctx context.Context, patterns []*Pattern, opts *SearchOptio
 			}
 		}
 		solutions = filtered
+	}
+
+	// Apply vector filter for hybrid search
+	if opts.VectorFilter != nil && db.options.VectorIndex != nil {
+		var err error
+		solutions, err = db.applyVectorFilter(ctx, solutions, opts.VectorFilter)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Apply offset
@@ -388,4 +475,135 @@ func (si *SolutionIterator) Close() {
 // Error returns any error encountered during iteration.
 func (si *SolutionIterator) Error() error {
 	return si.err
+}
+
+// GetVectorScore extracts the vector similarity score from a solution.
+// Returns 0 if no score was set (e.g., if VectorFilter wasn't used).
+func GetVectorScore(sol Solution) float32 {
+	scoreBytes, ok := sol["__vector_score__"]
+	if !ok {
+		return 0
+	}
+	scores := vector.BytesToVector(scoreBytes)
+	if len(scores) == 0 {
+		return 0
+	}
+	return scores[0]
+}
+
+// scoredSolution pairs a solution with its vector similarity score.
+type scoredSolution struct {
+	solution Solution
+	score    float32
+}
+
+// applyVectorFilter filters and ranks solutions based on vector similarity.
+func (db *DB) applyVectorFilter(ctx context.Context, solutions []Solution, vf *VectorFilter) ([]Solution, error) {
+	if len(solutions) == 0 {
+		return solutions, nil
+	}
+
+	// Get the query vector
+	queryVec := vf.Query
+	if queryVec == nil && vf.QueryText != "" {
+		if db.options.Embedder == nil {
+			return nil, ErrEmbedderRequired
+		}
+		var err error
+		queryVec, err = db.options.Embedder.Embed(vf.QueryText)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if queryVec == nil {
+		return solutions, nil // No query, return as-is
+	}
+
+	// Determine ID type
+	idType := vf.IDType
+	if idType == "" {
+		idType = vector.IDTypeObject
+	}
+
+	// Score each solution based on vector similarity
+	scored := make([]scoredSolution, 0, len(solutions))
+	scoreCache := make(map[string]float32) // Cache scores by vector ID string
+
+	for _, sol := range solutions {
+		varValue, ok := sol[vf.Variable]
+		if !ok {
+			continue // Variable not bound in this solution
+		}
+
+		// Create vector ID for this value
+		vecID := vector.MakeID(idType, varValue)
+		vecIDStr := string(vecID)
+
+		// Check if we've already scored this value
+		if cachedScore, found := scoreCache[vecIDStr]; found {
+			// Use the cached score for duplicate variable values
+			scored = append(scored, scoredSolution{
+				solution: sol,
+				score:    cachedScore,
+			})
+			continue
+		}
+
+		// Look up vector for this value
+		vec, err := db.options.VectorIndex.Get(vecID)
+		if err != nil {
+			// Vector not found for this value - assign score 0
+			scoreCache[vecIDStr] = 0
+			scored = append(scored, scoredSolution{
+				solution: sol,
+				score:    0,
+			})
+			continue
+		}
+
+		// Compute similarity and normalize to [0, 1] range
+		// Use cosine distance, then normalize using the same function as Index.Search
+		distance := vector.Cosine(queryVec, vec)
+		normalizedScore := vector.NormalizeScore(distance)
+
+		// Cache and store the score
+		scoreCache[vecIDStr] = normalizedScore
+		scored = append(scored, scoredSolution{
+			solution: sol,
+			score:    normalizedScore,
+		})
+	}
+
+	// Apply minimum score filter
+	if vf.MinScore > 0 {
+		filtered := make([]scoredSolution, 0, len(scored))
+		for _, s := range scored {
+			if s.score >= vf.MinScore {
+				filtered = append(filtered, s)
+			}
+		}
+		scored = filtered
+	}
+
+	// Sort by score (descending)
+	sort.Slice(scored, func(i, j int) bool {
+		return scored[i].score > scored[j].score
+	})
+
+	// Apply TopK limit
+	if vf.TopK > 0 && len(scored) > vf.TopK {
+		scored = scored[:vf.TopK]
+	}
+
+	// Extract solutions, adding score to each
+	result := make([]Solution, len(scored))
+	for i, s := range scored {
+		// Clone solution and add score
+		result[i] = s.solution.Clone()
+		// Store score as special key (using float bytes)
+		result[i]["__vector_score__"] = vector.VectorToBytes([]float32{s.score})
+	}
+
+	return result, nil
 }

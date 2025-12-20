@@ -149,7 +149,7 @@ func TestDB_Store_Errors_Extra(t *testing.T) {
 			return errors.New("io error")
 		},
 	}
-	db := OpenWithDB(m)
+	db, _ := OpenWithDB(m)
 	err := db.Put(context.Background(), NewTripleFromStrings("a", "b", "c"))
 	if err == nil || !errors.Is(err, errors.New("io error")) && err.Error() != "levelgraph: write batch: io error" {
 		t.Errorf("expected io error, got %v", err)
@@ -276,7 +276,7 @@ func TestTripleIterator_ParseError_Extra(t *testing.T) {
 			return &mockIterator{next: true, value: []byte(`{`)}
 		},
 	}
-	db := OpenWithDB(m)
+	db, _ := OpenWithDB(m)
 	_, err := db.Get(context.Background(), &Pattern{})
 	if err == nil {
 		t.Error("expected parse error")

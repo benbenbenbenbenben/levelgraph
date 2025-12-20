@@ -2623,9 +2623,9 @@ func TestOpenWithDB(t *testing.T) {
 	}
 
 	// Wrap with LevelGraph
-	db := OpenWithDB(ldb, WithJournal())
-	if db == nil {
-		t.Fatal("OpenWithDB should return a DB")
+	db, err := OpenWithDB(ldb, WithJournal())
+	if err != nil {
+		t.Fatalf("OpenWithDB error: %v", err)
 	}
 	if !db.options.JournalEnabled {
 		t.Error("options should be applied")

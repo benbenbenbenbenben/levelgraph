@@ -70,6 +70,8 @@ func main() {
 - **Journalling**: Record all write operations for audit trails and replication
 - **Facets**: Attach properties to subjects, predicates, objects, or entire triples
 - **Binary Data Support**: Store arbitrary `[]byte` data in triples
+- **Vector Search**: Semantic similarity search using vector embeddings (HNSW)
+- **Hybrid Search**: Combine graph traversal with vector similarity
 
 ## API Reference
 
@@ -319,6 +321,135 @@ facets, err := db.GetTripleFacets(triple)
 err = db.DelTripleFacet(triple, []byte("since"))
 err = db.DelAllTripleFacets(triple)
 ```
+
+### Vector Search
+
+LevelGraph supports semantic similarity search using vector embeddings. This enables "fuzzy" queries based on meaning rather than exact matches.
+
+#### Basic Setup
+
+```go
+import (
+    "github.com/benbenbenbenbenben/levelgraph"
+    "github.com/benbenbenbenbenben/levelgraph/vector"
+    "github.com/benbenbenbenbenben/levelgraph/vector/luxical"
+)
+
+// Load a text embedding model (Luxical produces 192-dim embeddings)
+embedder, err := luxical.NewEmbedder("./models/luxical")
+if err != nil {
+    log.Fatal(err)
+}
+defer embedder.Close()
+
+// Create a vector index matching the embedder dimensions
+index := vector.NewHNSWIndex(embedder.Dimensions())
+
+// Open database with vector support and auto-embedding
+db, err := levelgraph.Open("/path/to/db",
+    levelgraph.WithVectors(index),
+    levelgraph.WithAutoEmbed(embedder, levelgraph.AutoEmbedObjects),
+)
+```
+
+#### Manual Vector Operations
+
+```go
+ctx := context.Background()
+
+// Set a vector manually
+vec := []float32{0.1, 0.2, 0.3, ...} // 192 dimensions
+id := vector.MakeID(vector.IDTypeObject, []byte("tennis"))
+db.SetVector(ctx, id, vec)
+
+// Get a vector
+vec, err := db.GetVector(ctx, id)
+
+// Search for similar vectors
+results, err := db.SearchVectors(ctx, queryVec, 10)
+for _, match := range results {
+    fmt.Printf("ID: %s, Score: %.3f\n", match.ID, match.Score)
+}
+
+// Search by text (requires embedder)
+results, err := db.SearchVectorsByText(ctx, "racket sports", 10)
+```
+
+#### Hybrid Search (Graph + Vectors)
+
+Combine graph pattern matching with vector similarity:
+
+```go
+// Find people who like topics similar to "machine learning"
+solutions, err := db.Search(ctx, []*levelgraph.Pattern{
+    {Subject: levelgraph.V("person"), Predicate: []byte("likes"), Object: levelgraph.V("topic")},
+}, &levelgraph.SearchOptions{
+    VectorFilter: &levelgraph.VectorFilter{
+        Variable:  "topic",
+        QueryText: "machine learning",  // Will be embedded
+        TopK:      10,                   // Top 10 similar topics
+        MinScore:  0.7,                  // Filter low similarity
+        IDType:    vector.IDTypeObject,
+    },
+})
+
+for _, sol := range solutions {
+    score := levelgraph.GetVectorScore(sol)
+    fmt.Printf("%s likes %s (score: %.3f)\n", sol["person"], sol["topic"], score)
+}
+```
+
+#### Async Auto-Embedding
+
+For better performance with real embedding models, enable async embedding:
+
+```go
+db, err := levelgraph.Open("/path/to/db",
+    levelgraph.WithVectors(index),
+    levelgraph.WithAutoEmbed(embedder, levelgraph.AutoEmbedObjects),
+    levelgraph.WithAsyncAutoEmbed(100),  // Buffer size
+)
+
+// Add triples (embedding happens in background)
+for _, triple := range triples {
+    db.Put(ctx, triple)
+}
+
+// Wait for all embeddings before searching
+err = db.WaitForEmbeddings(ctx)
+```
+
+#### HNSW Parameter Tuning
+
+```go
+// High-speed, lower recall (~95%)
+index := vector.NewHNSWIndex(192,
+    vector.WithM(12),
+    vector.WithEfConstruction(100),
+    vector.WithEfSearch(30),
+)
+
+// Balanced (default, ~98% recall)
+index := vector.NewHNSWIndex(192,
+    vector.WithM(16),
+    vector.WithEfConstruction(200),
+    vector.WithEfSearch(50),
+)
+
+// High-recall (~99.5%)
+index := vector.NewHNSWIndex(192,
+    vector.WithM(32),
+    vector.WithEfConstruction(400),
+    vector.WithEfSearch(200),
+)
+```
+
+#### Score Interpretation
+
+- **1.0**: Identical vectors (perfect match)
+- **0.7-0.9**: Highly similar (typically good matches)
+- **0.5-0.7**: Moderately similar
+- **0.0-0.5**: Dissimilar
 
 ## Web Playground (WASM)
 

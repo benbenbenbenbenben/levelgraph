@@ -69,6 +69,8 @@ var (
 	ErrClosed = errors.New("levelgraph: database is closed")
 	// ErrInvalidTriple is returned when a triple is invalid.
 	ErrInvalidTriple = errors.New("levelgraph: invalid triple - subject, predicate, and object are required")
+	// ErrDimensionMismatch is returned when Embedder and VectorIndex have different dimensions.
+	ErrDimensionMismatch = errors.New("levelgraph: embedder and vector index dimension mismatch")
 )
 
 // KVStore defines the interface for the underlying key-value store.
@@ -88,6 +90,12 @@ type DB struct {
 	closed         bool
 	mu             sync.RWMutex
 	journalCounter uint64
+
+	// Async embedding fields
+	embedQueue   chan []*Triple // Queue for async embedding
+	embedDone    chan struct{}  // Signals worker goroutine has finished
+	embedWg      sync.WaitGroup // Tracks pending embed operations
+	embedStarted bool           // Whether the embed worker was started
 }
 
 // Open opens or creates a LevelGraph database at the specified path.
@@ -98,28 +106,65 @@ func Open(path string, opts ...Option) (*DB, error) {
 	}
 	options := applyOptions(opts...)
 
+	// Validate options before opening store
+	if err := validateOptions(options); err != nil {
+		return nil, err
+	}
+
 	store, err := openLevelDB(path)
 	if err != nil {
 		return nil, fmt.Errorf("levelgraph: open %s: %w", path, err)
 	}
 
-	return &DB{
+	db := &DB{
 		store:   store,
 		options: options,
-	}, nil
+	}
+
+	// Start async embed worker if enabled
+	db.startEmbedWorker()
+
+	return db, nil
 }
 
 // OpenWithDB wraps an existing KVStore instance with LevelGraph.
 // This is useful for using custom configurations or in-memory databases.
-func OpenWithDB(store KVStore, opts ...Option) *DB {
+func OpenWithDB(store KVStore, opts ...Option) (*DB, error) {
 	options := applyOptions(opts...)
-	return &DB{
+
+	// Validate options
+	if err := validateOptions(options); err != nil {
+		return nil, err
+	}
+
+	db := &DB{
 		store:   store,
 		options: options,
 	}
+
+	// Start async embed worker if enabled
+	db.startEmbedWorker()
+
+	return db, nil
+}
+
+// validateOptions validates the option configuration.
+// Returns an error if the configuration is invalid.
+func validateOptions(options *Options) error {
+	// Validate that Embedder and VectorIndex dimensions match
+	if options.Embedder != nil && options.VectorIndex != nil {
+		embedDims := options.Embedder.Dimensions()
+		indexDims := options.VectorIndex.Dimensions()
+		if embedDims != indexDims {
+			return fmt.Errorf("%w: embedder produces %d dimensions but vector index expects %d",
+				ErrDimensionMismatch, embedDims, indexDims)
+		}
+	}
+	return nil
 }
 
 // Close closes the database.
+// If async embedding is enabled, Close waits for all pending embeddings to complete.
 func (db *DB) Close() error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
@@ -129,12 +174,16 @@ func (db *DB) Close() error {
 	}
 
 	db.closed = true
+
+	// Stop embed worker if running
+	db.stopEmbedWorker()
+
 	return db.store.Close()
 }
 
 // CloseGracefully closes the database gracefully, waiting for the context
 // to be cancelled or for a clean shutdown. This allows pending read operations
-// to complete before closing.
+// and async embeddings to complete before closing.
 func (db *DB) CloseGracefully(ctx context.Context) error {
 	// First, mark as closing to prevent new writes
 	db.mu.Lock()
@@ -152,6 +201,10 @@ func (db *DB) CloseGracefully(ctx context.Context) error {
 	}
 
 	db.closed = true
+
+	// Stop embed worker if running
+	db.stopEmbedWorker()
+
 	err := db.store.Close()
 	db.mu.Unlock()
 
@@ -176,6 +229,8 @@ func (db *DB) V(name string) *Variable {
 }
 
 // Put inserts one or more triples into the database.
+// If auto-embedding is enabled (via WithAutoEmbed), vectors will be
+// automatically generated for the configured triple components.
 func (db *DB) Put(ctx context.Context, triples ...*Triple) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
@@ -216,6 +271,16 @@ func (db *DB) Put(ctx context.Context, triples ...*Triple) error {
 
 	if err := db.store.Write(batch, nil); err != nil {
 		return fmt.Errorf("levelgraph: write batch: %w", err)
+	}
+
+	// Auto-embed if configured (done after write to not block on embedding)
+	if db.options.Embedder != nil && db.options.AutoEmbedTargets != AutoEmbedNone && db.options.VectorIndex != nil {
+		if err := db.autoEmbedTriples(ctx, triples); err != nil {
+			// Log but don't fail the Put - embedding is secondary
+			if db.options.Logger != nil {
+				db.options.Logger.Warn("auto-embed failed", "error", err)
+			}
+		}
 	}
 
 	if db.options.Logger != nil {
