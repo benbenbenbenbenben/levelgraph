@@ -95,7 +95,7 @@ func (pv PatternValue) VariableName() string {
 	return ""
 }
 
-// ToInterface converts the PatternValue to the any (interface{}) representation
+// ToInterface converts the PatternValue to the any representation
 // used by the original Pattern struct. This enables interoperability.
 func (pv PatternValue) ToInterface() any {
 	switch pv.kind {

@@ -113,7 +113,7 @@ func TestTriple_MarshalJSON(t *testing.T) {
 	}
 
 	// Should be valid JSON
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(data, &result); err != nil {
 		t.Fatalf("Result should be valid JSON: %v", err)
 	}

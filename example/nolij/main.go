@@ -327,7 +327,7 @@ func cmdJoin(args []string) {
 	defer db.Close()
 
 	// Parse patterns - :var becomes a Variable, else concrete value or wildcard
-	parseValue := func(s string) interface{} {
+	parseValue := func(s string) any {
 		if strings.HasPrefix(s, ":") {
 			return levelgraph.V(s[1:])
 		}

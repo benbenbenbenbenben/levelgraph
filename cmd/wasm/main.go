@@ -41,7 +41,7 @@ func main() {
 	db = levelgraph.OpenWithStore(store)
 
 	// Register functions for JavaScript
-	js.Global().Set("levelgraph", js.ValueOf(map[string]interface{}{
+	js.Global().Set("levelgraph", js.ValueOf(map[string]any{
 		"put":     js.FuncOf(put),
 		"del":     js.FuncOf(del),
 		"get":     js.FuncOf(get),
@@ -59,12 +59,12 @@ func main() {
 }
 
 // isReady returns true if the database is ready.
-func isReady(this js.Value, args []js.Value) interface{} {
+func isReady(this js.Value, args []js.Value) any {
 	return db != nil && db.IsOpen()
 }
 
 // reset clears the database and creates a fresh one.
-func reset(this js.Value, args []js.Value) interface{} {
+func reset(this js.Value, args []js.Value) any {
 	if db != nil {
 		db.Close()
 	}
@@ -76,9 +76,9 @@ func reset(this js.Value, args []js.Value) interface{} {
 // put inserts triples into the database.
 // Args: triplesJSON (array of {subject, predicate, object})
 // Returns: {error?: string}
-func put(this js.Value, args []js.Value) interface{} {
+func put(this js.Value, args []js.Value) any {
 	if len(args) < 1 {
-		return map[string]interface{}{"error": "put requires a triples argument"}
+		return map[string]any{"error": "put requires a triples argument"}
 	}
 
 	triplesJSON := args[0].String()
@@ -89,7 +89,7 @@ func put(this js.Value, args []js.Value) interface{} {
 	}
 
 	if err := json.Unmarshal([]byte(triplesJSON), &triplesData); err != nil {
-		return map[string]interface{}{"error": "invalid JSON: " + err.Error()}
+		return map[string]any{"error": "invalid JSON: " + err.Error()}
 	}
 
 	triples := make([]*levelgraph.Triple, len(triplesData))
@@ -99,18 +99,18 @@ func put(this js.Value, args []js.Value) interface{} {
 
 	ctx := context.Background()
 	if err := db.Put(ctx, triples...); err != nil {
-		return map[string]interface{}{"error": err.Error()}
+		return map[string]any{"error": err.Error()}
 	}
 
-	return map[string]interface{}{"count": len(triples)}
+	return map[string]any{"count": len(triples)}
 }
 
 // del deletes triples from the database.
 // Args: triplesJSON (array of {subject, predicate, object})
 // Returns: {error?: string}
-func del(this js.Value, args []js.Value) interface{} {
+func del(this js.Value, args []js.Value) any {
 	if len(args) < 1 {
-		return map[string]interface{}{"error": "del requires a triples argument"}
+		return map[string]any{"error": "del requires a triples argument"}
 	}
 
 	triplesJSON := args[0].String()
@@ -121,7 +121,7 @@ func del(this js.Value, args []js.Value) interface{} {
 	}
 
 	if err := json.Unmarshal([]byte(triplesJSON), &triplesData); err != nil {
-		return map[string]interface{}{"error": "invalid JSON: " + err.Error()}
+		return map[string]any{"error": "invalid JSON: " + err.Error()}
 	}
 
 	triples := make([]*levelgraph.Triple, len(triplesData))
@@ -131,18 +131,18 @@ func del(this js.Value, args []js.Value) interface{} {
 
 	ctx := context.Background()
 	if err := db.Del(ctx, triples...); err != nil {
-		return map[string]interface{}{"error": err.Error()}
+		return map[string]any{"error": err.Error()}
 	}
 
-	return map[string]interface{}{"count": len(triples)}
+	return map[string]any{"count": len(triples)}
 }
 
 // get retrieves triples matching a pattern.
 // Args: patternJSON ({subject?, predicate?, object?, limit?, offset?})
 // Returns: {triples: [{subject, predicate, object}], error?: string}
-func get(this js.Value, args []js.Value) interface{} {
+func get(this js.Value, args []js.Value) any {
 	if len(args) < 1 {
-		return map[string]interface{}{"error": "get requires a pattern argument"}
+		return map[string]any{"error": "get requires a pattern argument"}
 	}
 
 	patternJSON := args[0].String()
@@ -155,7 +155,7 @@ func get(this js.Value, args []js.Value) interface{} {
 	}
 
 	if err := json.Unmarshal([]byte(patternJSON), &patternData); err != nil {
-		return map[string]interface{}{"error": "invalid JSON: " + err.Error()}
+		return map[string]any{"error": "invalid JSON: " + err.Error()}
 	}
 
 	pattern := &levelgraph.Pattern{
@@ -164,59 +164,59 @@ func get(this js.Value, args []js.Value) interface{} {
 	}
 
 	if patternData.Subject != "" {
-		pattern.Subject = []byte(patternData.Subject)
+		pattern.Subject = levelgraph.ExactString(patternData.Subject)
 	}
 	if patternData.Predicate != "" {
-		pattern.Predicate = []byte(patternData.Predicate)
+		pattern.Predicate = levelgraph.ExactString(patternData.Predicate)
 	}
 	if patternData.Object != "" {
-		pattern.Object = []byte(patternData.Object)
+		pattern.Object = levelgraph.ExactString(patternData.Object)
 	}
 
 	ctx := context.Background()
 	triples, err := db.Get(ctx, pattern)
 	if err != nil {
-		return map[string]interface{}{"error": err.Error()}
+		return map[string]any{"error": err.Error()}
 	}
 
-	results := make([]interface{}, len(triples))
+	results := make([]any, len(triples))
 	for i, t := range triples {
-		results[i] = map[string]interface{}{
+		results[i] = map[string]any{
 			"subject":   string(t.Subject),
 			"predicate": string(t.Predicate),
 			"object":    string(t.Object),
 		}
 	}
 
-	return map[string]interface{}{"triples": results}
+	return map[string]any{"triples": results}
 }
 
 // search executes a search query with multiple patterns (join).
 // Args: patternsJSON (array of patterns), optionsJSON (optional)
 // Returns: {solutions: [{varName: value}], error?: string}
-func search(this js.Value, args []js.Value) interface{} {
+func search(this js.Value, args []js.Value) any {
 	if len(args) < 1 {
-		return map[string]interface{}{"error": "search requires a patterns argument"}
+		return map[string]any{"error": "search requires a patterns argument"}
 	}
 
 	patternsJSON := args[0].String()
 	var patternsData []struct {
-		Subject   interface{} `json:"subject,omitempty"`
-		Predicate interface{} `json:"predicate,omitempty"`
-		Object    interface{} `json:"object,omitempty"`
+		Subject   any `json:"subject,omitempty"`
+		Predicate any `json:"predicate,omitempty"`
+		Object    any `json:"object,omitempty"`
 	}
 
 	if err := json.Unmarshal([]byte(patternsJSON), &patternsData); err != nil {
-		return map[string]interface{}{"error": "invalid JSON: " + err.Error()}
+		return map[string]any{"error": "invalid JSON: " + err.Error()}
 	}
 
 	patterns := make([]*levelgraph.Pattern, len(patternsData))
 	for i, p := range patternsData {
-		pattern := &levelgraph.Pattern{}
-		pattern.Subject = parsePatternField(p.Subject)
-		pattern.Predicate = parsePatternField(p.Predicate)
-		pattern.Object = parsePatternField(p.Object)
-		patterns[i] = pattern
+		patterns[i] = levelgraph.NewPattern(
+			parsePatternField(p.Subject),
+			parsePatternField(p.Predicate),
+			parsePatternField(p.Object),
+		)
 	}
 
 	var opts *levelgraph.SearchOptions
@@ -278,25 +278,25 @@ func search(this js.Value, args []js.Value) interface{} {
 	ctx := context.Background()
 	solutions, err := db.Search(ctx, patterns, opts)
 	if err != nil {
-		return map[string]interface{}{"error": err.Error()}
+		return map[string]any{"error": err.Error()}
 	}
 
-	results := make([]interface{}, len(solutions))
+	results := make([]any, len(solutions))
 	for i, sol := range solutions {
-		solMap := make(map[string]interface{})
+		solMap := make(map[string]any)
 		for k, v := range sol {
 			solMap[k] = string(v)
 		}
 		results[i] = solMap
 	}
 
-	return map[string]interface{}{"solutions": results}
+	return map[string]any{"solutions": results}
 }
 
 // parsePatternField parses a pattern field value.
 // If it's a string starting with "?", it's a variable.
 // Otherwise, it's a concrete value.
-func parsePatternField(v interface{}) interface{} {
+func parsePatternField(v any) any {
 	if v == nil {
 		return nil
 	}
@@ -313,9 +313,9 @@ func parsePatternField(v interface{}) interface{} {
 // nav executes a navigation query.
 // Args: navJSON ({start, steps: [{type: "out"|"in", predicate}]})
 // Returns: {values: [string], error?: string}
-func nav(this js.Value, args []js.Value) interface{} {
+func nav(this js.Value, args []js.Value) any {
 	if len(args) < 1 {
-		return map[string]interface{}{"error": "nav requires a navigation argument"}
+		return map[string]any{"error": "nav requires a navigation argument"}
 	}
 
 	navJSON := args[0].String()
@@ -328,7 +328,7 @@ func nav(this js.Value, args []js.Value) interface{} {
 	}
 
 	if err := json.Unmarshal([]byte(navJSON), &navData); err != nil {
-		return map[string]interface{}{"error": "invalid JSON: " + err.Error()}
+		return map[string]any{"error": "invalid JSON: " + err.Error()}
 	}
 
 	ctx := context.Background()
@@ -341,19 +341,19 @@ func nav(this js.Value, args []js.Value) interface{} {
 		case "in":
 			navigator = navigator.ArchIn(step.Predicate)
 		default:
-			return map[string]interface{}{"error": "unknown step type: " + step.Type}
+			return map[string]any{"error": "unknown step type: " + step.Type}
 		}
 	}
 
 	values, err := navigator.Values()
 	if err != nil {
-		return map[string]interface{}{"error": err.Error()}
+		return map[string]any{"error": err.Error()}
 	}
 
-	results := make([]interface{}, len(values))
+	results := make([]any, len(values))
 	for i, v := range values {
 		results[i] = string(v)
 	}
 
-	return map[string]interface{}{"values": results}
+	return map[string]any{"values": results}
 }

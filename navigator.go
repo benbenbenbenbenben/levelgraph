@@ -44,13 +44,13 @@ type Navigator struct {
 	db              *DB
 	conditions      []*graph.Pattern
 	initialSolution graph.Solution
-	lastElement     interface{} // either []byte or *graph.Variable
+	lastElement     any // either []byte or *graph.Variable
 	varCounter      int
 }
 
 // Nav creates a new Navigator starting from the given vertex.
 // If start is nil, a new variable is created as the starting point.
-func (db *DB) Nav(ctx context.Context, start interface{}) *Navigator {
+func (db *DB) Nav(ctx context.Context, start any) *Navigator {
 	nav := &Navigator{
 		ctx:             ctx,
 		db:              db,
@@ -72,7 +72,7 @@ func (nav *Navigator) nextVar() *graph.Variable {
 // Go moves the navigator to a new vertex.
 // If vertex is nil, a new variable is created.
 // vertex can be []byte, string (converted to []byte), or *graph.Variable.
-func (nav *Navigator) Go(vertex interface{}) *Navigator {
+func (nav *Navigator) Go(vertex any) *Navigator {
 	if vertex == nil {
 		nav.lastElement = nav.nextVar()
 	} else {
@@ -92,7 +92,7 @@ func (nav *Navigator) Go(vertex interface{}) *Navigator {
 
 // ArchOut follows an outgoing edge with the given predicate.
 // The current position becomes the subject, and navigates to the object.
-func (nav *Navigator) ArchOut(predicate interface{}) *Navigator {
+func (nav *Navigator) ArchOut(predicate any) *Navigator {
 	newVar := nav.nextVar()
 
 	pattern := graph.NewPattern(nav.lastElement, predicate, newVar)
@@ -104,7 +104,7 @@ func (nav *Navigator) ArchOut(predicate interface{}) *Navigator {
 
 // ArchIn follows an incoming edge with the given predicate.
 // The current position becomes the object, and navigates to the subject.
-func (nav *Navigator) ArchIn(predicate interface{}) *Navigator {
+func (nav *Navigator) ArchIn(predicate any) *Navigator {
 	newVar := nav.nextVar()
 
 	pattern := graph.NewPattern(newVar, predicate, nav.lastElement)
@@ -125,7 +125,7 @@ func (nav *Navigator) As(name string) *Navigator {
 
 // Bind binds the current position's variable to a concrete value.
 // This is used to constrain the search.
-func (nav *Navigator) Bind(value interface{}) *Navigator {
+func (nav *Navigator) Bind(value any) *Navigator {
 	if v, ok := nav.lastElement.(*graph.Variable); ok {
 		val := normalizeValue(value)
 		if val != nil {
@@ -224,7 +224,7 @@ func (nav *Navigator) Triples(pattern *graph.Pattern) ([]*graph.Triple, error) {
 }
 
 // normalizeValue converts various input types to []byte.
-func normalizeValue(v interface{}) []byte {
+func normalizeValue(v any) []byte {
 	if v == nil {
 		return nil
 	}
