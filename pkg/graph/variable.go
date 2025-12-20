@@ -160,8 +160,8 @@ func (s Solution) Equal(other Solution) bool {
 	return true
 }
 
-// IsVariable checks if the given interface{} is a *Variable or a PatternValue of kind binding.
-func IsVariable(v interface{}) bool {
+// IsVariable checks if the given value is a *Variable or a PatternValue of kind binding.
+func IsVariable(v any) bool {
 	if _, ok := v.(*Variable); ok {
 		return true
 	}
@@ -171,8 +171,8 @@ func IsVariable(v interface{}) bool {
 	return false
 }
 
-// AsVariable converts an interface{} to *Variable if possible.
-func AsVariable(v interface{}) (*Variable, bool) {
+// AsVariable converts a value to *Variable if possible.
+func AsVariable(v any) (*Variable, bool) {
 	if variable, ok := v.(*Variable); ok {
 		return variable, true
 	}

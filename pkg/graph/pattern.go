@@ -95,9 +95,9 @@ func (pv PatternValue) VariableName() string {
 	return ""
 }
 
-// ToInterface converts the PatternValue to the interface{} representation
+// ToInterface converts the PatternValue to the any (interface{}) representation
 // used by the original Pattern struct. This enables interoperability.
-func (pv PatternValue) ToInterface() interface{} {
+func (pv PatternValue) ToInterface() any {
 	switch pv.kind {
 	case patternValueWildcard:
 		return nil
@@ -133,7 +133,7 @@ type Pattern struct {
 
 // NewPattern creates a new pattern from interface values.
 // Values can be nil, []byte, string (converted to []byte), or *Variable.
-func NewPattern(subject, predicate, object interface{}) *Pattern {
+func NewPattern(subject, predicate, object any) *Pattern {
 	return &Pattern{
 		Subject:   normalizePatternValue(subject),
 		Predicate: normalizePatternValue(predicate),
@@ -142,7 +142,7 @@ func NewPattern(subject, predicate, object interface{}) *Pattern {
 }
 
 // normalizePatternValue converts various input types to the internal representation.
-func normalizePatternValue(v interface{}) PatternValue {
+func normalizePatternValue(v any) PatternValue {
 	if v == nil {
 		return Wildcard()
 	}
