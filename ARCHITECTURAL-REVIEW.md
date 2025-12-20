@@ -18,7 +18,7 @@ LevelGraph is a graph database built on top of LevelDB, implementing a hexastore
 - **Dependencies**:
   - The project uses `github.com/syndtr/goleveldb` effectively.
   - **Crucial Issue**: The `go.mod` file contains a local `replace` directive (`replace github.com/benbenbenbenbenben/luxical-one-go => /home/ben/luxical-one/go/luxical`). This makes the repository non-buildable for anyone other than the original author. This **must** be resolved.
-- **Logging**: There is no unified logging strategy visible.
+- **Logging**: [DONE] Structured logging via `slog` has been added. Use `WithLogger()` option to inject a custom logger.
 
 ## 3. Type Safety & Go Idioms
 
