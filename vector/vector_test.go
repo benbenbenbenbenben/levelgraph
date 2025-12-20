@@ -713,18 +713,18 @@ func TestFlatIndexUpdate(t *testing.T) {
 
 func TestFlatIndexConcurrency(t *testing.T) {
 	idx := NewFlatIndex(32)
-	rng := rand.New(rand.NewSource(42))
 
 	var wg sync.WaitGroup
 	numWriters := 10
 	numReaders := 10
 	opsPerWorker := 100
 
-	// Writers
+	// Writers - each goroutine gets its own RNG to avoid race
 	for w := 0; w < numWriters; w++ {
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
+			rng := rand.New(rand.NewSource(int64(42 + workerID)))
 			for i := 0; i < opsPerWorker; i++ {
 				id := []byte{byte(workerID), byte(i)}
 				vec := randomVector(32, rng)
@@ -733,16 +733,17 @@ func TestFlatIndexConcurrency(t *testing.T) {
 		}(w)
 	}
 
-	// Readers
+	// Readers - each goroutine gets its own RNG to avoid race
 	for r := 0; r < numReaders; r++ {
 		wg.Add(1)
-		go func() {
+		go func(readerID int) {
 			defer wg.Done()
+			rng := rand.New(rand.NewSource(int64(1000 + readerID)))
 			for i := 0; i < opsPerWorker; i++ {
 				query := randomVector(32, rng)
 				idx.Search(query, 5)
 			}
-		}()
+		}(r)
 	}
 
 	wg.Wait()
@@ -905,18 +906,18 @@ func TestHNSWIndexErrors(t *testing.T) {
 
 func TestHNSWIndexConcurrency(t *testing.T) {
 	idx := NewHNSWIndex(32, WithSeed(42))
-	rng := rand.New(rand.NewSource(42))
 
 	var wg sync.WaitGroup
 	numWriters := 5
 	numReaders := 10
 	opsPerWorker := 50
 
-	// Writers
+	// Writers - each goroutine gets its own RNG to avoid race
 	for w := 0; w < numWriters; w++ {
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
+			rng := rand.New(rand.NewSource(int64(42 + workerID)))
 			for i := 0; i < opsPerWorker; i++ {
 				id := []byte{byte(workerID), byte(i)}
 				vec := randomVector(32, rng)
@@ -925,16 +926,17 @@ func TestHNSWIndexConcurrency(t *testing.T) {
 		}(w)
 	}
 
-	// Readers
+	// Readers - each goroutine gets its own RNG to avoid race
 	for r := 0; r < numReaders; r++ {
 		wg.Add(1)
-		go func() {
+		go func(readerID int) {
 			defer wg.Done()
+			rng := rand.New(rand.NewSource(int64(1000 + readerID)))
 			for i := 0; i < opsPerWorker; i++ {
 				query := randomVector(32, rng)
 				idx.Search(query, 5)
 			}
-		}()
+		}(r)
 	}
 
 	wg.Wait()
