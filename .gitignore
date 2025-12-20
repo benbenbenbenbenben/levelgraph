@@ -35,3 +35,14 @@ db_test/
 
 # Logs
 *.log
+
+# Profiling
+*.prof
+
+# Debug/test output files
+test_output*.txt
+debug-*.json
+
+# Built binaries (keep .wasm for playground)
+levelgraph
+nolij

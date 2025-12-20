@@ -1,9 +1,0 @@
-{
-  "args": {
-    "command": {
-      "action": "list",
-      "workitemCategory": "all"
-    }
-  },
-  "commandWasString": false
-}

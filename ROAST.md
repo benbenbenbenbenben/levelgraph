@@ -50,10 +50,12 @@ It’s cute. But underneath, `search.go` is doing so much looping and filtering 
 
 This line basically says: "This code runs on Ben's machine. If you are not Ben, good luck." Open source? more like "Of-Course-It-Works-Here".
 
-## 7. Error Handling & logging
+## 7. Error Handling & logging (IMPROVED!)
 
 `validateOptions`: "I'll check if your dimensions match. If not? `ErrDimensionMismatch`. If yes? Good luck."
-And the logging... mostly non-existent, except when `Put` decides to `Warn` that auto-embedding failed. "Data integrity is optional, we tried, it failed, moving on."
+~~And the logging... mostly non-existent, except when `Put` decides to `Warn` that auto-embedding failed.~~
+
+**UPDATE**: Structured logging with `slog` has been added throughout the codebase. `Open()`, `Close()`, and journal operations now log their activities. You can even inject your own logger via `WithLogger()`. The darkness has lifted... slightly.
 
 ## Summary
 
