@@ -12,6 +12,25 @@ LevelGraph uses the **Hexastore** approach as presented in the article:
 Following this approach, LevelGraph uses six indices for every triple, enabling
 extremely fast pattern matching queries.
 
+### Design Trade-offs
+
+**Hexastore Indexing**: LevelGraph creates 6 index entries per triple (SPO, SOP, POS, PSO, OPS, OSP). This **6x write amplification** is a deliberate trade-off:
+
+| Aspect | Hexastore Approach |
+|--------|-------------------|
+| Write Speed | Slower (6 writes per triple) |
+| Storage Size | Larger (6x index overhead) |
+| Read Speed | **Very fast** - O(1) lookups by any S/P/O combination |
+| Query Flexibility | Query by any combination without full scans |
+
+This makes LevelGraph ideal for **read-heavy workloads** where you need flexible querying patterns.
+
+**Binary Data (`[]byte`)**: All triple components (subject, predicate, object) are stored as `[]byte`:
+- Supports arbitrary binary data, not just strings
+- Avoids encoding/decoding overhead
+- Consistent with LevelDB's native key/value types
+- Use `NewTripleFromStrings()` for convenient string handling
+
 ## Installation
 
 ```bash
