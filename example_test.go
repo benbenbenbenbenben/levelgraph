@@ -102,9 +102,9 @@ func Example_search() {
 	// Find everyone alice knows
 	results, err := db.Search(context.Background(), []*graph.Pattern{
 		{
-			Subject: graph.ExactString("alice"),
+			Subject:   graph.ExactString("alice"),
 			Predicate: graph.ExactString("knows"),
-			Object: graph.Binding("friend"),
+			Object:    graph.Binding("friend"),
 		},
 	}, nil)
 	if err != nil {
