@@ -15,7 +15,7 @@ extremely fast pattern matching queries.
 ## Installation
 
 ```bash
-go get github.com/levelgraph/levelgraph
+go get github.com/benbenbenbenbenben/levelgraph
 ```
 
 ## Quick Start
@@ -28,7 +28,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/levelgraph/levelgraph"
+    "github.com/benbenbenbenbenben/levelgraph"
 )
 
 func main() {

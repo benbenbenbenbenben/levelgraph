@@ -1,4 +1,4 @@
-module github.com/levelgraph/levelgraph
+module github.com/benbenbenbenbenben/levelgraph
 
 go 1.25.1
 

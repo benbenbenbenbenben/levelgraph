@@ -13,7 +13,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/levelgraph/levelgraph"
+	"github.com/benbenbenbenbenben/levelgraph"
 )
 
 const dbPath = ".nolij.db"

@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/levelgraph/levelgraph"
+	"github.com/benbenbenbenbenben/levelgraph"
 )
 
 func main() {

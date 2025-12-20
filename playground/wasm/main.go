@@ -30,7 +30,7 @@ import (
 	"encoding/json"
 	"syscall/js"
 
-	"github.com/levelgraph/levelgraph"
+	"github.com/benbenbenbenbenben/levelgraph"
 )
 
 var db *levelgraph.DB

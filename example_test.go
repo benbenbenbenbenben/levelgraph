@@ -30,7 +30,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/levelgraph/levelgraph"
+	"github.com/benbenbenbenbenben/levelgraph"
 )
 
 // Example demonstrates basic LevelGraph usage: opening a database,
