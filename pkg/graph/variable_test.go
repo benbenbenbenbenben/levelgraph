@@ -243,3 +243,73 @@ func TestVarAlias(t *testing.T) {
 		t.Error("Var alias should work")
 	}
 }
+
+func TestVariable_BindInPlace(t *testing.T) {
+	v := V("x")
+	value := []byte("alice")
+
+	// Bind to empty solution
+	solution := Solution{}
+	if !v.BindInPlace(solution, value) {
+		t.Error("BindInPlace should succeed on empty solution")
+	}
+	if !bytes.Equal(solution["x"], value) {
+		t.Error("variable should be bound to value")
+	}
+
+	// Bind to same value (should succeed)
+	if !v.BindInPlace(solution, value) {
+		t.Error("BindInPlace to same value should succeed")
+	}
+
+	// Bind to different value (should fail)
+	if v.BindInPlace(solution, []byte("bob")) {
+		t.Error("BindInPlace to different value should fail")
+	}
+
+	// Original value should be unchanged
+	if !bytes.Equal(solution["x"], value) {
+		t.Error("original value should be unchanged after failed bind")
+	}
+}
+
+func TestSolution_ShallowClone(t *testing.T) {
+	// Clone nil
+	var s Solution = nil
+	if s.ShallowClone() != nil {
+		t.Error("shallow cloning nil should return nil")
+	}
+
+	// Clone empty
+	s = Solution{}
+	clone := s.ShallowClone()
+	if clone == nil || len(clone) != 0 {
+		t.Error("shallow cloning empty should return empty")
+	}
+
+	// Clone with data
+	s = Solution{
+		"x": []byte("alice"),
+		"y": []byte("bob"),
+	}
+	clone = s.ShallowClone()
+	if len(clone) != 2 {
+		t.Error("shallow clone should have same length")
+	}
+	if !bytes.Equal(clone["x"], []byte("alice")) || !bytes.Equal(clone["y"], []byte("bob")) {
+		t.Error("shallow clone should have same values")
+	}
+
+	// Verify shallow copy (shared references)
+	// Modifying the byte slice in clone should affect original
+	clone["x"][0] = 'X'
+	if s["x"][0] != 'X' {
+		t.Error("shallow clone should share byte slice references")
+	}
+
+	// But adding new keys doesn't affect original
+	clone["z"] = []byte("new")
+	if _, exists := s["z"]; exists {
+		t.Error("adding to shallow clone shouldn't affect original map")
+	}
+}

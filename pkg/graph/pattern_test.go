@@ -439,3 +439,115 @@ func TestPattern_PreservesOptions(t *testing.T) {
 		t.Error("Filter should be preserved")
 	}
 }
+
+func TestPattern_BindTripleFast(t *testing.T) {
+	triple := &Triple{
+		Subject:   []byte("alice"),
+		Predicate: []byte("knows"),
+		Object:    []byte("bob"),
+	}
+
+	// Bind to empty solution
+	p := NewPattern(V("x"), []byte("knows"), V("y"))
+	result := p.BindTripleFast(nil, triple)
+	if result == nil {
+		t.Fatal("expected solution, got nil")
+	}
+	if !bytes.Equal(result["x"], []byte("alice")) {
+		t.Error("x should be bound to alice")
+	}
+	if !bytes.Equal(result["y"], []byte("bob")) {
+		t.Error("y should be bound to bob")
+	}
+
+	// Bind with existing solution that matches
+	solution := Solution{"x": []byte("alice")}
+	result = p.BindTripleFast(solution, triple)
+	if result == nil {
+		t.Fatal("expected solution, got nil")
+	}
+
+	// Bind with existing solution that conflicts
+	solution = Solution{"x": []byte("eve")}
+	result = p.BindTripleFast(solution, triple)
+	if result != nil {
+		t.Error("conflicting binding should return nil")
+	}
+
+	// Concrete pattern that doesn't match (subject)
+	p = NewPattern([]byte("eve"), []byte("knows"), []byte("bob"))
+	result = p.BindTripleFast(nil, triple)
+	if result != nil {
+		t.Error("non-matching subject should return nil")
+	}
+
+	// Concrete pattern that doesn't match (predicate)
+	p = NewPattern([]byte("alice"), []byte("hates"), []byte("bob"))
+	result = p.BindTripleFast(nil, triple)
+	if result != nil {
+		t.Error("non-matching predicate should return nil")
+	}
+
+	// Concrete pattern that doesn't match (object)
+	p = NewPattern([]byte("alice"), []byte("knows"), []byte("eve"))
+	result = p.BindTripleFast(nil, triple)
+	if result != nil {
+		t.Error("non-matching object should return nil")
+	}
+
+	// Concrete pattern that matches
+	p = NewPattern([]byte("alice"), []byte("knows"), []byte("bob"))
+	result = p.BindTripleFast(nil, triple)
+	if result == nil {
+		t.Fatal("matching concrete pattern should return solution")
+	}
+
+	// Wildcard pattern
+	p = NewPattern(nil, nil, nil)
+	result = p.BindTripleFast(nil, triple)
+	if result == nil {
+		t.Fatal("wildcard pattern should return solution")
+	}
+}
+
+func TestPattern_BindTripleFast_SameAsBindTriple(t *testing.T) {
+	// Verify BindTripleFast produces the same results as BindTriple
+	triples := []*Triple{
+		{Subject: []byte("alice"), Predicate: []byte("knows"), Object: []byte("bob")},
+		{Subject: []byte("bob"), Predicate: []byte("likes"), Object: []byte("coffee")},
+	}
+
+	patterns := []*Pattern{
+		NewPattern(V("x"), []byte("knows"), V("y")),
+		NewPattern([]byte("alice"), V("p"), V("o")),
+		NewPattern(V("s"), V("p"), V("o")),
+		NewPattern([]byte("bob"), []byte("likes"), []byte("coffee")),
+		NewPattern(nil, nil, nil),
+	}
+
+	solutions := []Solution{
+		nil,
+		{},
+		{"x": []byte("alice")},
+	}
+
+	for _, triple := range triples {
+		for _, pattern := range patterns {
+			for _, solution := range solutions {
+				expected := pattern.BindTriple(solution, triple)
+				actual := pattern.BindTripleFast(solution, triple)
+
+				if expected == nil && actual == nil {
+					continue
+				}
+				if expected == nil || actual == nil {
+					t.Errorf("BindTriple and BindTripleFast differ: expected=%v, actual=%v", expected, actual)
+					continue
+				}
+				if !expected.Equal(actual) {
+					t.Errorf("BindTriple and BindTripleFast produce different results: expected=%v, actual=%v", expected, actual)
+				}
+			}
+		}
+	}
+}
