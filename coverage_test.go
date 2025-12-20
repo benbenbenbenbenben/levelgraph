@@ -32,6 +32,9 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
+
+	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
+	"github.com/benbenbenbenbenben/levelgraph/pkg/index"
 )
 
 type mockStore struct {
@@ -129,7 +132,7 @@ func TestDB_ContextDone_Errors_Extra(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	triple := NewTripleFromStrings("a", "b", "c")
+	triple := graph.NewTripleFromStrings("a", "b", "c")
 
 	if err := db.Put(ctx, triple); !errors.Is(err, context.Canceled) {
 		t.Errorf("Put: expected context.Canceled, got %v", err)
@@ -137,7 +140,7 @@ func TestDB_ContextDone_Errors_Extra(t *testing.T) {
 	if err := db.Del(ctx, triple); !errors.Is(err, context.Canceled) {
 		t.Errorf("Del: expected context.Canceled, got %v", err)
 	}
-	if _, err := db.Get(ctx, &Pattern{}); !errors.Is(err, context.Canceled) {
+	if _, err := db.Get(ctx, &graph.Pattern{}); !errors.Is(err, context.Canceled) {
 		t.Errorf("Get: expected context.Canceled, got %v", err)
 	}
 }
@@ -150,7 +153,7 @@ func TestDB_Store_Errors_Extra(t *testing.T) {
 		},
 	}
 	db, _ := OpenWithDB(m)
-	err := db.Put(context.Background(), NewTripleFromStrings("a", "b", "c"))
+	err := db.Put(context.Background(), graph.NewTripleFromStrings("a", "b", "c"))
 	if err == nil || !errors.Is(err, errors.New("io error")) && err.Error() != "levelgraph: write batch: io error" {
 		t.Errorf("expected io error, got %v", err)
 	}
@@ -161,19 +164,19 @@ func TestSearchIterator_Materialize_Extra(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	db.Put(context.Background(), NewTripleFromStrings("alice", "knows", "bob"))
+	db.Put(context.Background(), graph.NewTripleFromStrings("alice", "knows", "bob"))
 
-	patterns := []*Pattern{
+	patterns := []*graph.Pattern{
 		{
 			Subject:   []byte("alice"),
 			Predicate: []byte("knows"),
-			Object:    V("friend"),
+			Object:    graph.V("friend"),
 		},
 	}
 
 	opts := &SearchOptions{
-		Materialized: &Pattern{
-			Subject:   V("friend"),
+		Materialized: &graph.Pattern{
+			Subject:   graph.V("friend"),
 			Predicate: []byte("is_known_by"),
 			Object:    []byte("alice"),
 		},
@@ -202,11 +205,11 @@ func TestJournal_Full_Extra(t *testing.T) {
 	db.options.JournalEnabled = true
 
 	ctx := context.Background()
-	db.Put(ctx, NewTripleFromStrings("a", "b", "c"))
+	db.Put(ctx, graph.NewTripleFromStrings("a", "b", "c"))
 
 	time.Sleep(10 * time.Millisecond)
 	midTime := time.Now()
-	db.Put(ctx, NewTripleFromStrings("d", "e", "f"))
+	db.Put(ctx, graph.NewTripleFromStrings("d", "e", "f"))
 
 	count, _ := db.JournalCount(ctx, midTime)
 	if count != 1 {
@@ -246,7 +249,7 @@ func TestJournal_Full_Extra(t *testing.T) {
 
 func TestTriple_Unmarshal_Error_Extra(t *testing.T) {
 	t.Parallel()
-	var tr Triple
+	var tr graph.Triple
 	if err := tr.UnmarshalJSON([]byte(`{`)); err == nil {
 		t.Error("expected error")
 	}
@@ -263,7 +266,7 @@ func TestTriple_Unmarshal_Error_Extra(t *testing.T) {
 
 func TestIndex_PossibleIndexes_Empty_Extra(t *testing.T) {
 	t.Parallel()
-	res := PossibleIndexes(nil)
+	res := index.PossibleIndexes(nil)
 	if len(res) != 6 {
 		t.Errorf("expected 6 indexes for empty fields, got %d", len(res))
 	}
@@ -277,7 +280,7 @@ func TestTripleIterator_ParseError_Extra(t *testing.T) {
 		},
 	}
 	db, _ := OpenWithDB(m)
-	_, err := db.Get(context.Background(), &Pattern{})
+	_, err := db.Get(context.Background(), &graph.Pattern{})
 	if err == nil {
 		t.Error("expected parse error")
 	}

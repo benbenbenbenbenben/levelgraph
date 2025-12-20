@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
 	"github.com/benbenbenbenbenben/levelgraph/vector"
 )
 
@@ -439,7 +440,7 @@ func (db *DB) SetObjectVector(ctx context.Context, object []byte, vec []float32)
 }
 
 // SetTripleVector is a convenience method to set a vector for a triple.
-func (db *DB) SetTripleVector(ctx context.Context, triple *Triple, vec []float32) error {
+func (db *DB) SetTripleVector(ctx context.Context, triple *graph.Triple, vec []float32) error {
 	id := vector.MakeID(vector.IDTypeTriple, triple.Subject, triple.Predicate, triple.Object)
 	return db.SetVector(ctx, id, vec)
 }
@@ -492,11 +493,11 @@ func (db *DB) SearchSimilarSubjects(ctx context.Context, query []float32, k int)
 //
 // If AsyncAutoEmbed is enabled, this queues the work for background processing.
 // Otherwise, it processes synchronously.
-func (db *DB) autoEmbedTriples(ctx context.Context, triples []*Triple) error {
+func (db *DB) autoEmbedTriples(ctx context.Context, triples []*graph.Triple) error {
 	// If async embedding is enabled, queue the work
 	if db.embedStarted {
 		// Make a copy of the triples slice to avoid races
-		triplesCopy := make([]*Triple, len(triples))
+		triplesCopy := make([]*graph.Triple, len(triples))
 		copy(triplesCopy, triples)
 
 		db.embedWg.Add(1)
@@ -516,7 +517,7 @@ func (db *DB) autoEmbedTriples(ctx context.Context, triples []*Triple) error {
 
 // doAutoEmbedTriples performs the actual embedding work.
 // This is called either synchronously from autoEmbedTriples or from the background worker.
-func (db *DB) doAutoEmbedTriples(ctx context.Context, triples []*Triple) error {
+func (db *DB) doAutoEmbedTriples(ctx context.Context, triples []*graph.Triple) error {
 	// Collect unique values to embed by type
 	subjects := make(map[string][]byte)
 	predicates := make(map[string][]byte)
@@ -628,7 +629,7 @@ func (db *DB) startEmbedWorker() {
 		bufSize = defaultAsyncEmbedBufferSize
 	}
 
-	db.embedQueue = make(chan []*Triple, bufSize)
+	db.embedQueue = make(chan []*graph.Triple, bufSize)
 	db.embedDone = make(chan struct{})
 	db.embedStarted = true
 

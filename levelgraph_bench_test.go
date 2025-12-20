@@ -30,6 +30,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
+	"github.com/benbenbenbenbenben/levelgraph/pkg/index"
 )
 
 func setupBenchDB(b *testing.B) (*DB, func()) {
@@ -62,7 +65,7 @@ func BenchmarkPut(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		triple := NewTripleFromStrings(
+		triple := graph.NewTripleFromStrings(
 			fmt.Sprintf("subject%d", i),
 			"predicate",
 			fmt.Sprintf("object%d", i),
@@ -79,9 +82,9 @@ func BenchmarkPutBatch(b *testing.B) {
 	defer cleanup()
 
 	// Prepare triples
-	triples := make([]*Triple, 100)
+	triples := make([]*graph.Triple, 100)
 	for i := 0; i < 100; i++ {
-		triples[i] = NewTripleFromStrings(
+		triples[i] = graph.NewTripleFromStrings(
 			fmt.Sprintf("subject%d", i),
 			"predicate",
 			fmt.Sprintf("object%d", i),
@@ -103,7 +106,7 @@ func BenchmarkGet(b *testing.B) {
 
 	// Insert some data
 	for i := 0; i < 1000; i++ {
-		triple := NewTripleFromStrings(
+		triple := graph.NewTripleFromStrings(
 			fmt.Sprintf("subject%d", i%100),
 			"predicate",
 			fmt.Sprintf("object%d", i),
@@ -114,7 +117,7 @@ func BenchmarkGet(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		subject := fmt.Sprintf("subject%d", i%100)
-		_, err := db.Get(context.Background(), &Pattern{Subject: []byte(subject)})
+		_, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte(subject)})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -129,7 +132,7 @@ func BenchmarkGetByPredicate(b *testing.B) {
 	// Insert some data
 	predicates := []string{"knows", "likes", "follows", "works_with"}
 	for i := 0; i < 1000; i++ {
-		triple := NewTripleFromStrings(
+		triple := graph.NewTripleFromStrings(
 			fmt.Sprintf("subject%d", i),
 			predicates[i%len(predicates)],
 			fmt.Sprintf("object%d", i),
@@ -140,7 +143,7 @@ func BenchmarkGetByPredicate(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		pred := predicates[i%len(predicates)]
-		_, err := db.Get(context.Background(), &Pattern{Predicate: []byte(pred)})
+		_, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte(pred)})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -155,7 +158,7 @@ func BenchmarkSearch(b *testing.B) {
 	// Setup FOAF-like data
 	for i := 0; i < 100; i++ {
 		for j := 0; j < 5; j++ {
-			triple := NewTripleFromStrings(
+			triple := graph.NewTripleFromStrings(
 				fmt.Sprintf("person%d", i),
 				"friend",
 				fmt.Sprintf("person%d", (i+j+1)%100),
@@ -166,9 +169,9 @@ func BenchmarkSearch(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := db.Search(context.Background(), []*Pattern{
+		_, err := db.Search(context.Background(), []*graph.Pattern{
 			{
-				Subject:   V("x"),
+				Subject:   graph.V("x"),
 				Predicate: []byte("friend"),
 				Object:    []byte("person50"),
 			},
@@ -187,7 +190,7 @@ func BenchmarkSearchJoin(b *testing.B) {
 	// Setup FOAF-like data
 	for i := 0; i < 100; i++ {
 		for j := 0; j < 5; j++ {
-			triple := NewTripleFromStrings(
+			triple := graph.NewTripleFromStrings(
 				fmt.Sprintf("person%d", i),
 				"friend",
 				fmt.Sprintf("person%d", (i+j+1)%100),
@@ -199,16 +202,16 @@ func BenchmarkSearchJoin(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Find friends of friends of person0
-		_, err := db.Search(context.Background(), []*Pattern{
+		_, err := db.Search(context.Background(), []*graph.Pattern{
 			{
 				Subject:   []byte("person0"),
 				Predicate: []byte("friend"),
-				Object:    V("x"),
+				Object:    graph.V("x"),
 			},
 			{
-				Subject:   V("x"),
+				Subject:   graph.V("x"),
 				Predicate: []byte("friend"),
-				Object:    V("y"),
+				Object:    graph.V("y"),
 			},
 		}, nil)
 		if err != nil {
@@ -225,7 +228,7 @@ func BenchmarkNavigator(b *testing.B) {
 	// Setup FOAF-like data
 	for i := 0; i < 100; i++ {
 		for j := 0; j < 5; j++ {
-			triple := NewTripleFromStrings(
+			triple := graph.NewTripleFromStrings(
 				fmt.Sprintf("person%d", i),
 				"friend",
 				fmt.Sprintf("person%d", (i+j+1)%100),
@@ -252,9 +255,9 @@ func BenchmarkDel(b *testing.B) {
 	defer cleanup()
 
 	// Pre-insert triples
-	triples := make([]*Triple, b.N)
+	triples := make([]*graph.Triple, b.N)
 	for i := 0; i < b.N; i++ {
-		triples[i] = NewTripleFromStrings(
+		triples[i] = graph.NewTripleFromStrings(
 			fmt.Sprintf("subject%d", i),
 			"predicate",
 			fmt.Sprintf("object%d", i),
@@ -277,7 +280,7 @@ func BenchmarkIterator(b *testing.B) {
 
 	// Insert some data
 	for i := 0; i < 1000; i++ {
-		triple := NewTripleFromStrings(
+		triple := graph.NewTripleFromStrings(
 			"subject",
 			"predicate",
 			fmt.Sprintf("object%d", i),
@@ -287,7 +290,7 @@ func BenchmarkIterator(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		iter, err := db.GetIterator(context.Background(), &Pattern{Subject: []byte("subject")})
+		iter, err := db.GetIterator(context.Background(), &graph.Pattern{Subject: []byte("subject")})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -316,7 +319,7 @@ func BenchmarkJournalPut(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		triple := NewTripleFromStrings(
+		triple := graph.NewTripleFromStrings(
 			fmt.Sprintf("subject%d", i),
 			"predicate",
 			fmt.Sprintf("object%d", i),
@@ -380,29 +383,29 @@ func BenchmarkFacetGet(b *testing.B) {
 	}
 }
 
-// BenchmarkEscape measures escape function performance.
-func BenchmarkEscape(b *testing.B) {
+// Benchmarkindex.Escape measures escape function performance.
+func BenchmarkIndexEscape(b *testing.B) {
 	value := []byte("subject::with::many::colons::and\\backslashes")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = Escape(value)
+		_ = index.Escape(value)
 	}
 }
 
-// BenchmarkGenKey measures key generation performance.
-func BenchmarkGenKey(b *testing.B) {
-	triple := NewTripleFromStrings("subject", "predicate", "object")
+// Benchmarkindex.GenKey measures key generation performance.
+func BenchmarkIndexGenKey(b *testing.B) {
+	triple := graph.NewTripleFromStrings("subject", "predicate", "object")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = GenKey(IndexSPO, triple)
+		_ = index.GenKey(index.IndexSPO, triple)
 	}
 }
 
-// BenchmarkGenKeys measures full key generation performance (all 6 indexes).
-func BenchmarkGenKeys(b *testing.B) {
-	triple := NewTripleFromStrings("subject", "predicate", "object")
+// Benchmarkindex.GenKeys measures full key generation performance (all 6 indexes).
+func BenchmarkIndexGenKeys(b *testing.B) {
+	triple := graph.NewTripleFromStrings("subject", "predicate", "object")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = GenKeys(triple)
+		_ = index.GenKeys(triple)
 	}
 }

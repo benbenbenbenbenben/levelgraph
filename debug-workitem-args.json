@@ -1,11 +1,8 @@
 {
   "args": {
     "command": {
-      "action": "add",
-      "workitemCategory": "backlog",
-      "workitemDescription": "Add a visual graph rendering widget to the playground that displays:\n\n- **Graph visualization**: Render triples as an interactive node-link diagram\n  - Nodes for subjects/objects\n  - Labeled edges for predicates\n  - Support panning, zooming, and node dragging\n\n- **Query result highlighting**: When a query runs, highlight matching nodes/edges\n  - Show which parts of the graph matched the pattern\n  - Display variable bindings visually\n\n- **Implementation options**:\n  - D3.js force-directed graph\n  - Cytoscape.js\n  - vis.js Network\n\nThis would make the playground more educational and help users understand how their queries traverse the graph.",
-      "workitemName": "playground-graph-widget",
-      "workitemTitle": "Add visual graph widget to playground"
+      "action": "list",
+      "workitemCategory": "all"
     }
   },
   "commandWasString": false

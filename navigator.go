@@ -26,6 +26,8 @@ package levelgraph
 import (
 	"context"
 	"fmt"
+
+	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
 )
 
 // Navigator provides a fluent API for traversing the graph.
@@ -40,9 +42,9 @@ import (
 type Navigator struct {
 	ctx             context.Context
 	db              *DB
-	conditions      []*Pattern
-	initialSolution Solution
-	lastElement     interface{} // either []byte or *Variable
+	conditions      []*graph.Pattern
+	initialSolution graph.Solution
+	lastElement     interface{} // either []byte or *graph.Variable
 	varCounter      int
 }
 
@@ -52,8 +54,8 @@ func (db *DB) Nav(ctx context.Context, start interface{}) *Navigator {
 	nav := &Navigator{
 		ctx:             ctx,
 		db:              db,
-		conditions:      make([]*Pattern, 0),
-		initialSolution: make(Solution),
+		conditions:      make([]*graph.Pattern, 0),
+		initialSolution: make(graph.Solution),
 		varCounter:      0,
 	}
 	nav.Go(start)
@@ -61,15 +63,15 @@ func (db *DB) Nav(ctx context.Context, start interface{}) *Navigator {
 }
 
 // nextVar generates the next anonymous variable for this navigator.
-func (nav *Navigator) nextVar() *Variable {
-	v := V(fmt.Sprintf("x%d", nav.varCounter))
+func (nav *Navigator) nextVar() *graph.Variable {
+	v := graph.V(fmt.Sprintf("x%d", nav.varCounter))
 	nav.varCounter++
 	return v
 }
 
 // Go moves the navigator to a new vertex.
 // If vertex is nil, a new variable is created.
-// vertex can be []byte, string (converted to []byte), or *Variable.
+// vertex can be []byte, string (converted to []byte), or *graph.Variable.
 func (nav *Navigator) Go(vertex interface{}) *Navigator {
 	if vertex == nil {
 		nav.lastElement = nav.nextVar()
@@ -79,7 +81,7 @@ func (nav *Navigator) Go(vertex interface{}) *Navigator {
 			nav.lastElement = v
 		case string:
 			nav.lastElement = []byte(v)
-		case *Variable:
+		case *graph.Variable:
 			nav.lastElement = v
 		default:
 			nav.lastElement = nav.nextVar()
@@ -94,7 +96,7 @@ func (nav *Navigator) ArchOut(predicate interface{}) *Navigator {
 	pred := normalizeValue(predicate)
 	newVar := nav.nextVar()
 
-	pattern := &Pattern{
+	pattern := &graph.Pattern{
 		Subject:   nav.lastElement,
 		Predicate: pred,
 		Object:    newVar,
@@ -111,7 +113,7 @@ func (nav *Navigator) ArchIn(predicate interface{}) *Navigator {
 	pred := normalizeValue(predicate)
 	newVar := nav.nextVar()
 
-	pattern := &Pattern{
+	pattern := &graph.Pattern{
 		Subject:   newVar,
 		Predicate: pred,
 		Object:    nav.lastElement,
@@ -125,7 +127,7 @@ func (nav *Navigator) ArchIn(predicate interface{}) *Navigator {
 // As names the current position with the given variable name.
 // This allows referencing the position later in the query.
 func (nav *Navigator) As(name string) *Navigator {
-	if v, ok := nav.lastElement.(*Variable); ok {
+	if v, ok := nav.lastElement.(*graph.Variable); ok {
 		v.Name = name
 	}
 	return nav
@@ -134,7 +136,7 @@ func (nav *Navigator) As(name string) *Navigator {
 // Bind binds the current position's variable to a concrete value.
 // This is used to constrain the search.
 func (nav *Navigator) Bind(value interface{}) *Navigator {
-	if v, ok := nav.lastElement.(*Variable); ok {
+	if v, ok := nav.lastElement.(*graph.Variable); ok {
 		val := normalizeValue(value)
 		if val != nil {
 			nav.initialSolution[v.Name] = val
@@ -145,10 +147,10 @@ func (nav *Navigator) Bind(value interface{}) *Navigator {
 
 // Solutions executes the navigation query and returns all solutions.
 // Each solution is a map of variable names to their bound values.
-func (nav *Navigator) Solutions() ([]Solution, error) {
+func (nav *Navigator) Solutions() ([]graph.Solution, error) {
 	if len(nav.conditions) == 0 {
 		// No conditions means return the initial solution
-		return []Solution{nav.initialSolution}, nil
+		return []graph.Solution{nav.initialSolution}, nil
 	}
 
 	// Pass initial solution to search - patterns will be updated with bound values,
@@ -168,7 +170,7 @@ func (nav *Navigator) Values() ([][]byte, error) {
 
 	// Get the variable name of the last element
 	var varName string
-	if v, ok := nav.lastElement.(*Variable); ok {
+	if v, ok := nav.lastElement.(*graph.Variable); ok {
 		varName = v.Name
 	} else {
 		// Last element is a concrete value, return it
@@ -197,7 +199,7 @@ func (nav *Navigator) Values() ([][]byte, error) {
 
 // Triples executes the query and materializes results into triples.
 // The pattern specifies how to construct the result triples from solutions.
-func (nav *Navigator) Triples(pattern *Pattern) ([]*Triple, error) {
+func (nav *Navigator) Triples(pattern *graph.Pattern) ([]*graph.Triple, error) {
 	if len(nav.conditions) == 0 {
 		return nil, nil
 	}
@@ -211,9 +213,9 @@ func (nav *Navigator) Triples(pattern *Pattern) ([]*Triple, error) {
 	}
 
 	// Convert solutions to triples
-	var result []*Triple
+	var result []*graph.Triple
 	for _, sol := range solutions {
-		triple := &Triple{}
+		triple := &graph.Triple{}
 		if s, ok := sol["subject"]; ok {
 			triple.Subject = s
 		}
@@ -262,7 +264,7 @@ func (nav *Navigator) Count() (int, error) {
 }
 
 // First returns the first solution, or nil if none found.
-func (nav *Navigator) First() (Solution, error) {
+func (nav *Navigator) First() (graph.Solution, error) {
 	if len(nav.conditions) == 0 {
 		return nav.initialSolution, nil
 	}
@@ -293,8 +295,8 @@ func (nav *Navigator) Clone() *Navigator {
 	newNav := &Navigator{
 		ctx:             nav.ctx,
 		db:              nav.db,
-		conditions:      make([]*Pattern, len(nav.conditions)),
-		initialSolution: make(Solution),
+		conditions:      make([]*graph.Pattern, len(nav.conditions)),
+		initialSolution: make(graph.Solution),
 		lastElement:     nav.lastElement,
 		varCounter:      nav.varCounter,
 	}
@@ -310,7 +312,7 @@ func (nav *Navigator) Clone() *Navigator {
 
 // Filter adds a filter function to the last condition.
 // The filter is applied to each matching triple.
-func (nav *Navigator) Filter(fn func(*Triple) bool) *Navigator {
+func (nav *Navigator) Filter(fn func(*graph.Triple) bool) *Navigator {
 	if len(nav.conditions) > 0 {
 		nav.conditions[len(nav.conditions)-1].Filter = fn
 	}
@@ -318,7 +320,7 @@ func (nav *Navigator) Filter(fn func(*Triple) bool) *Navigator {
 }
 
 // Where adds a custom pattern condition to the navigator.
-func (nav *Navigator) Where(pattern *Pattern) *Navigator {
+func (nav *Navigator) Where(pattern *graph.Pattern) *Navigator {
 	nav.conditions = append(nav.conditions, pattern)
 	return nav
 }

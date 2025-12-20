@@ -25,11 +25,14 @@
 package levelgraph
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
-	"encoding/json"
+	"io"
 	"sync/atomic"
 	"time"
+
+	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
 )
 
 var (
@@ -45,6 +48,73 @@ type JournalEntry struct {
 	Triple *Triple `json:"triple"`
 	// Timestamp is when the operation occurred
 	Timestamp time.Time `json:"ts"`
+}
+
+// MarshalBinary implements encoding.BinaryMarshaler for JournalEntry.
+// Format: [OpByte][Timestamp (8 bytes)][Triple Binary]
+func (e *JournalEntry) MarshalBinary() ([]byte, error) {
+	var buf bytes.Buffer
+
+	// Op
+	if e.Operation == "put" {
+		buf.WriteByte(1)
+	} else {
+		buf.WriteByte(0) // del
+	}
+
+	// Timestamp (int64 nanoseconds)
+	if err := binary.Write(&buf, binary.BigEndian, e.Timestamp.UnixNano()); err != nil {
+		return nil, err
+	}
+
+	// Triple
+	tripleBytes, err := e.Triple.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	buf.Write(tripleBytes)
+
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary implements encoding.BinaryUnmarshaler for JournalEntry.
+func (e *JournalEntry) UnmarshalBinary(data []byte) error {
+	rd := bytes.NewReader(data)
+
+	// Op
+	op, err := rd.ReadByte()
+	if err != nil {
+		return err
+	}
+	if op == 1 {
+		e.Operation = "put"
+	} else {
+		e.Operation = "del"
+	}
+
+	// Timestamp
+	var ts int64
+	if err := binary.Read(rd, binary.BigEndian, &ts); err != nil {
+		return err
+	}
+	e.Timestamp = time.Unix(0, ts)
+
+	// Triple
+	// The rest of the buffer is the triple
+	// We need to read the rest, or just pass the reader if Triple supported it, but Triple takes byte slice.
+	// Since Triple marshals with length prefixes, we can just read the rest.
+	// Actually Triple.UnmarshalBinary expects just the triple bytes.
+	// Since we are at the end of the stream (presumably), we can read all.
+	tripleBytes, err := io.ReadAll(rd)
+	if err != nil {
+		return err
+	}
+	e.Triple = &graph.Triple{}
+	if err := e.Triple.UnmarshalBinary(tripleBytes); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // genJournalKey generates a unique key for a journal entry.
@@ -65,7 +135,7 @@ func (db *DB) genJournalKey(ts time.Time) []byte {
 }
 
 // recordJournalEntry adds a journal entry to the batch.
-func (db *DB) recordJournalEntry(batch *Batch, op string, triple *Triple) error {
+func (db *DB) recordJournalEntry(batch *Batch, op string, triple *graph.Triple) error {
 	if !db.options.JournalEnabled {
 		return nil
 	}
@@ -77,7 +147,7 @@ func (db *DB) recordJournalEntry(batch *Batch, op string, triple *Triple) error 
 		Timestamp: ts,
 	}
 
-	value, err := json.Marshal(entry)
+	value, err := entry.MarshalBinary() // Use binary marshaling
 	if err != nil {
 		return err
 	}
@@ -144,7 +214,7 @@ func (ji *JournalIterator) Next() bool {
 func (ji *JournalIterator) Entry() (*JournalEntry, error) {
 	value := ji.iter.Value()
 	var entry JournalEntry
-	if err := json.Unmarshal(value, &entry); err != nil {
+	if err := entry.UnmarshalBinary(value); err != nil { // Use binary unmarshaling
 		return nil, err
 	}
 	return &entry, nil
@@ -357,7 +427,7 @@ func (db *DB) ReplayJournal(ctx context.Context, after time.Time, targetDB *DB) 
 		}
 
 		var entry JournalEntry
-		if err := json.Unmarshal(iter.Value(), &entry); err != nil {
+		if err := entry.UnmarshalBinary(iter.Value()); err != nil {
 			return count, err
 		}
 

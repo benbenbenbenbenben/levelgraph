@@ -28,6 +28,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+
+	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
+	"github.com/benbenbenbenbenben/levelgraph/pkg/index"
 )
 
 var (
@@ -59,10 +62,10 @@ func genFacetKey(facetType FacetType, value []byte, key []byte) []byte {
 	var buf bytes.Buffer
 	buf.Write(facetPrefix)
 	buf.WriteString(string(facetType))
-	buf.Write(keySeparator)
-	buf.Write(Escape(value))
-	buf.Write(keySeparator)
-	buf.Write(Escape(key))
+	buf.Write(index.KeySeparator)
+	buf.Write(index.Escape(value))
+	buf.Write(index.KeySeparator)
+	buf.Write(index.Escape(key))
 	return buf.Bytes()
 }
 
@@ -72,37 +75,37 @@ func genFacetPrefix(facetType FacetType, value []byte) []byte {
 	var buf bytes.Buffer
 	buf.Write(facetPrefix)
 	buf.WriteString(string(facetType))
-	buf.Write(keySeparator)
-	buf.Write(Escape(value))
-	buf.Write(keySeparator)
+	buf.Write(index.KeySeparator)
+	buf.Write(index.Escape(value))
+	buf.Write(index.KeySeparator)
 	return buf.Bytes()
 }
 
 // genTripleFacetKey generates a key for a triple-level facet.
 // Format: triple_facet::<spo_key>::<facet_key>
-func genTripleFacetKey(triple *Triple, key []byte) []byte {
+func genTripleFacetKey(triple *graph.Triple, key []byte) []byte {
 	var buf bytes.Buffer
 	buf.Write(tripleFacetPrefix)
-	buf.Write(Escape(triple.Subject))
-	buf.Write(keySeparator)
-	buf.Write(Escape(triple.Predicate))
-	buf.Write(keySeparator)
-	buf.Write(Escape(triple.Object))
-	buf.Write(keySeparator)
-	buf.Write(Escape(key))
+	buf.Write(index.Escape(triple.Subject))
+	buf.Write(index.KeySeparator)
+	buf.Write(index.Escape(triple.Predicate))
+	buf.Write(index.KeySeparator)
+	buf.Write(index.Escape(triple.Object))
+	buf.Write(index.KeySeparator)
+	buf.Write(index.Escape(key))
 	return buf.Bytes()
 }
 
 // genTripleFacetPrefix generates a prefix for iterating facets on a triple.
-func genTripleFacetPrefix(triple *Triple) []byte {
+func genTripleFacetPrefix(triple *graph.Triple) []byte {
 	var buf bytes.Buffer
 	buf.Write(tripleFacetPrefix)
-	buf.Write(Escape(triple.Subject))
-	buf.Write(keySeparator)
-	buf.Write(Escape(triple.Predicate))
-	buf.Write(keySeparator)
-	buf.Write(Escape(triple.Object))
-	buf.Write(keySeparator)
+	buf.Write(index.Escape(triple.Subject))
+	buf.Write(index.KeySeparator)
+	buf.Write(index.Escape(triple.Predicate))
+	buf.Write(index.KeySeparator)
+	buf.Write(index.Escape(triple.Object))
+	buf.Write(index.KeySeparator)
 	return buf.Bytes()
 }
 
@@ -190,7 +193,7 @@ func (db *DB) GetFacets(ctx context.Context, facetType FacetType, value []byte) 
 		// Extract the facet key from the database key
 		fullKey := iter.Key()
 		if len(fullKey) > prefixLen {
-			facetKey := Unescape(fullKey[prefixLen:])
+			facetKey := index.Unescape(fullKey[prefixLen:])
 			facetValue := make([]byte, len(iter.Value()))
 			copy(facetValue, iter.Value())
 			result[string(facetKey)] = facetValue
@@ -228,7 +231,7 @@ func (db *DB) DelFacet(ctx context.Context, facetType FacetType, value []byte, k
 }
 
 // SetTripleFacet sets a facet on an entire triple relationship.
-func (db *DB) SetTripleFacet(ctx context.Context, triple *Triple, key []byte, value []byte) error {
+func (db *DB) SetTripleFacet(ctx context.Context, triple *graph.Triple, key []byte, value []byte) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -251,7 +254,7 @@ func (db *DB) SetTripleFacet(ctx context.Context, triple *Triple, key []byte, va
 }
 
 // GetTripleFacet retrieves a facet from a triple.
-func (db *DB) GetTripleFacet(ctx context.Context, triple *Triple, key []byte) ([]byte, error) {
+func (db *DB) GetTripleFacet(ctx context.Context, triple *graph.Triple, key []byte) ([]byte, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -278,7 +281,7 @@ func (db *DB) GetTripleFacet(ctx context.Context, triple *Triple, key []byte) ([
 }
 
 // GetTripleFacets retrieves all facets from a triple.
-func (db *DB) GetTripleFacets(ctx context.Context, triple *Triple) (map[string][]byte, error) {
+func (db *DB) GetTripleFacets(ctx context.Context, triple *graph.Triple) (map[string][]byte, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -308,7 +311,7 @@ func (db *DB) GetTripleFacets(ctx context.Context, triple *Triple) (map[string][
 	for iter.Next() {
 		fullKey := iter.Key()
 		if len(fullKey) > prefixLen {
-			facetKey := Unescape(fullKey[prefixLen:])
+			facetKey := index.Unescape(fullKey[prefixLen:])
 			facetValue := make([]byte, len(iter.Value()))
 			copy(facetValue, iter.Value())
 			result[string(facetKey)] = facetValue
@@ -323,7 +326,7 @@ func (db *DB) GetTripleFacets(ctx context.Context, triple *Triple) (map[string][
 }
 
 // DelTripleFacet deletes a facet from a triple.
-func (db *DB) DelTripleFacet(ctx context.Context, triple *Triple, key []byte) error {
+func (db *DB) DelTripleFacet(ctx context.Context, triple *graph.Triple, key []byte) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -346,7 +349,7 @@ func (db *DB) DelTripleFacet(ctx context.Context, triple *Triple, key []byte) er
 }
 
 // DelAllTripleFacets deletes all facets from a triple.
-func (db *DB) DelAllTripleFacets(ctx context.Context, triple *Triple) error {
+func (db *DB) DelAllTripleFacets(ctx context.Context, triple *graph.Triple) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -420,7 +423,7 @@ func (db *DB) GetFacetIterator(ctx context.Context, facetType FacetType, value [
 }
 
 // GetTripleFacetIterator returns an iterator over facets on a triple.
-func (db *DB) GetTripleFacetIterator(ctx context.Context, triple *Triple) (*FacetIterator, error) {
+func (db *DB) GetTripleFacetIterator(ctx context.Context, triple *graph.Triple) (*FacetIterator, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -457,7 +460,7 @@ func (fi *FacetIterator) Next() bool {
 func (fi *FacetIterator) Key() []byte {
 	fullKey := fi.iter.Key()
 	if len(fullKey) > fi.prefixLen {
-		return Unescape(fullKey[fi.prefixLen:])
+		return index.Unescape(fullKey[fi.prefixLen:])
 	}
 	return nil
 }

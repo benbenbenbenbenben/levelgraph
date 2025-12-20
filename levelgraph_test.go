@@ -33,12 +33,15 @@ import (
 	"time"
 
 	"github.com/syndtr/goleveldb/leveldb"
+
+	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
+	"github.com/benbenbenbenbenben/levelgraph/pkg/index"
 )
 
 func TestTriple(t *testing.T) {
 	t.Parallel()
-	t.Run("NewTriple", func(t *testing.T) {
-		triple := NewTriple([]byte("a"), []byte("b"), []byte("c"))
+	t.Run("graph.NewTriple", func(t *testing.T) {
+		triple := graph.NewTriple([]byte("a"), []byte("b"), []byte("c"))
 		if string(triple.Subject) != "a" {
 			t.Errorf("expected subject 'a', got '%s'", triple.Subject)
 		}
@@ -50,17 +53,17 @@ func TestTriple(t *testing.T) {
 		}
 	})
 
-	t.Run("NewTripleFromStrings", func(t *testing.T) {
-		triple := NewTripleFromStrings("subject", "predicate", "object")
+	t.Run("graph.NewTripleFromStrings", func(t *testing.T) {
+		triple := graph.NewTripleFromStrings("subject", "predicate", "object")
 		if string(triple.Subject) != "subject" {
 			t.Errorf("expected subject 'subject', got '%s'", triple.Subject)
 		}
 	})
 
 	t.Run("Equal", func(t *testing.T) {
-		t1 := NewTripleFromStrings("a", "b", "c")
-		t2 := NewTripleFromStrings("a", "b", "c")
-		t3 := NewTripleFromStrings("a", "b", "d")
+		t1 := graph.NewTripleFromStrings("a", "b", "c")
+		t2 := graph.NewTripleFromStrings("a", "b", "c")
+		t3 := graph.NewTripleFromStrings("a", "b", "d")
 
 		if !t1.Equal(t2) {
 			t.Error("identical triples should be equal")
@@ -71,7 +74,7 @@ func TestTriple(t *testing.T) {
 	})
 
 	t.Run("Clone", func(t *testing.T) {
-		original := NewTripleFromStrings("a", "b", "c")
+		original := graph.NewTripleFromStrings("a", "b", "c")
 		clone := original.Clone()
 
 		if !original.Equal(clone) {
@@ -88,16 +91,16 @@ func TestTriple(t *testing.T) {
 
 func TestVariable(t *testing.T) {
 	t.Parallel()
-	t.Run("V constructor", func(t *testing.T) {
-		v := V("x")
+	t.Run("graph.V constructor", func(t *testing.T) {
+		v := graph.V("x")
 		if v.Name != "x" {
 			t.Errorf("expected name 'x', got '%s'", v.Name)
 		}
 	})
 
 	t.Run("Bind", func(t *testing.T) {
-		v := V("x")
-		solution := make(Solution)
+		v := graph.V("x")
+		solution := make(graph.Solution)
 		newSolution := v.Bind(solution, []byte("value"))
 
 		if newSolution == nil {
@@ -109,8 +112,8 @@ func TestVariable(t *testing.T) {
 	})
 
 	t.Run("Bind conflict", func(t *testing.T) {
-		v := V("x")
-		solution := Solution{"x": []byte("existing")}
+		v := graph.V("x")
+		solution := graph.Solution{"x": []byte("existing")}
 		newSolution := v.Bind(solution, []byte("different"))
 
 		if newSolution != nil {
@@ -119,8 +122,8 @@ func TestVariable(t *testing.T) {
 	})
 
 	t.Run("Bind same value", func(t *testing.T) {
-		v := V("x")
-		solution := Solution{"x": []byte("value")}
+		v := graph.V("x")
+		solution := graph.Solution{"x": []byte("value")}
 		newSolution := v.Bind(solution, []byte("value"))
 
 		if newSolution == nil {
@@ -129,9 +132,9 @@ func TestVariable(t *testing.T) {
 	})
 
 	t.Run("IsBound", func(t *testing.T) {
-		v := V("x")
-		solution := Solution{"x": []byte("value")}
-		emptyS := Solution{}
+		v := graph.V("x")
+		solution := graph.Solution{"x": []byte("value")}
+		emptyS := graph.Solution{}
 
 		if !v.IsBound(solution) {
 			t.Error("should be bound")
@@ -157,15 +160,15 @@ func TestEscape(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := Escape([]byte(tt.input))
+			result := index.Escape([]byte(tt.input))
 			if string(result) != tt.expected {
-				t.Errorf("Escape(%q) = %q, want %q", tt.input, result, tt.expected)
+				t.Errorf("index.Escape(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 
 			// Test round-trip
-			unescaped := Unescape(result)
+			unescaped := index.Unescape(result)
 			if string(unescaped) != tt.input {
-				t.Errorf("Unescape(Escape(%q)) = %q, want %q", tt.input, unescaped, tt.input)
+				t.Errorf("index.Unescape(index.Escape(%q)) = %q, want %q", tt.input, unescaped, tt.input)
 			}
 		})
 	}
@@ -173,10 +176,10 @@ func TestEscape(t *testing.T) {
 
 func TestGenKey(t *testing.T) {
 	t.Parallel()
-	triple := NewTripleFromStrings("subject", "predicate", "object")
+	triple := graph.NewTripleFromStrings("subject", "predicate", "object")
 
 	t.Run("SPO index", func(t *testing.T) {
-		key := GenKey(IndexSPO, triple)
+		key := index.GenKey(index.IndexSPO, triple)
 		expected := "spo::subject::predicate::object"
 		if string(key) != expected {
 			t.Errorf("got %q, want %q", key, expected)
@@ -184,7 +187,7 @@ func TestGenKey(t *testing.T) {
 	})
 
 	t.Run("POS index", func(t *testing.T) {
-		key := GenKey(IndexPOS, triple)
+		key := index.GenKey(index.IndexPOS, triple)
 		expected := "pos::predicate::object::subject"
 		if string(key) != expected {
 			t.Errorf("got %q, want %q", key, expected)
@@ -194,8 +197,8 @@ func TestGenKey(t *testing.T) {
 
 func TestGenKeys(t *testing.T) {
 	t.Parallel()
-	triple := NewTripleFromStrings("a", "b", "c")
-	keys := GenKeys(triple)
+	triple := graph.NewTripleFromStrings("a", "b", "c")
+	keys := index.GenKeys(triple)
 
 	if len(keys) != 6 {
 		t.Errorf("expected 6 keys, got %d", len(keys))
@@ -204,16 +207,16 @@ func TestGenKeys(t *testing.T) {
 
 func TestPattern(t *testing.T) {
 	t.Parallel()
-	t.Run("NewPattern with strings", func(t *testing.T) {
-		p := NewPattern("a", "b", "c")
+	t.Run("graph.NewPattern with strings", func(t *testing.T) {
+		p := graph.NewPattern("a", "b", "c")
 		if string(p.GetConcreteValue("subject")) != "a" {
 			t.Error("subject should be 'a'")
 		}
 	})
 
-	t.Run("NewPattern with variable", func(t *testing.T) {
-		v := V("x")
-		p := NewPattern(v, "b", "c")
+	t.Run("graph.NewPattern with variable", func(t *testing.T) {
+		v := graph.V("x")
+		p := graph.NewPattern(v, "b", "c")
 
 		if p.GetConcreteValue("subject") != nil {
 			t.Error("subject should be nil (variable)")
@@ -224,7 +227,7 @@ func TestPattern(t *testing.T) {
 	})
 
 	t.Run("ConcreteFields", func(t *testing.T) {
-		p := NewPattern("a", V("x"), "c")
+		p := graph.NewPattern("a", graph.V("x"), "c")
 		fields := p.ConcreteFields()
 
 		if len(fields) != 2 {
@@ -233,22 +236,22 @@ func TestPattern(t *testing.T) {
 	})
 
 	t.Run("Matches", func(t *testing.T) {
-		p := NewPattern("a", nil, nil)
-		triple := NewTripleFromStrings("a", "b", "c")
+		p := graph.NewPattern("a", nil, nil)
+		triple := graph.NewTripleFromStrings("a", "b", "c")
 
 		if !p.Matches(triple) {
 			t.Error("pattern should match")
 		}
 
-		p2 := NewPattern("x", nil, nil)
+		p2 := graph.NewPattern("x", nil, nil)
 		if p2.Matches(triple) {
 			t.Error("pattern should not match")
 		}
 	})
 
 	t.Run("BindTriple", func(t *testing.T) {
-		p := NewPattern(V("x"), "b", V("y"))
-		triple := NewTripleFromStrings("a", "b", "c")
+		p := graph.NewPattern(graph.V("x"), "b", graph.V("y"))
+		triple := graph.NewTripleFromStrings("a", "b", "c")
 		solution := p.BindTriple(nil, triple)
 
 		if solution == nil {
@@ -277,9 +280,9 @@ func TestPossibleIndexes(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		indexes := PossibleIndexes(tt.fields)
+		indexes := index.PossibleIndexes(tt.fields)
 		if len(indexes) != tt.expected {
-			t.Errorf("PossibleIndexes(%v) returned %d indexes, want %d", tt.fields, len(indexes), tt.expected)
+			t.Errorf("index.PossibleIndexes(%v) returned %d indexes, want %d", tt.fields, len(indexes), tt.expected)
 		}
 	}
 }
@@ -307,7 +310,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	defer cleanup()
 
 	t.Run("Put single triple", func(t *testing.T) {
-		triple := NewTripleFromStrings("a", "b", "c")
+		triple := graph.NewTripleFromStrings("a", "b", "c")
 		err := db.Put(context.Background(), triple)
 		if err != nil {
 			t.Fatalf("Put failed: %v", err)
@@ -315,7 +318,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	})
 
 	t.Run("Get by subject", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -328,7 +331,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	})
 
 	t.Run("Get by predicate", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("b")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -338,7 +341,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	})
 
 	t.Run("Get by object", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &Pattern{Object: []byte("c")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Object: []byte("c")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -348,7 +351,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	})
 
 	t.Run("Get by subject and predicate", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a"), Predicate: []byte("b")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a"), Predicate: []byte("b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -358,7 +361,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	})
 
 	t.Run("Get with no match", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("notfound")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("notfound")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -373,14 +376,14 @@ func TestDB_Del(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	triple := NewTripleFromStrings("a", "b", "c")
+	triple := graph.NewTripleFromStrings("a", "b", "c")
 	err := db.Put(context.Background(), triple)
 	if err != nil {
 		t.Fatalf("Put failed: %v", err)
 	}
 
 	// Verify it exists
-	results, _ := db.Get(context.Background(), &Pattern{Subject: []byte("a")})
+	results, _ := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a")})
 	if len(results) != 1 {
 		t.Fatal("triple should exist before delete")
 	}
@@ -392,7 +395,7 @@ func TestDB_Del(t *testing.T) {
 	}
 
 	// Verify it's gone
-	results, _ = db.Get(context.Background(), &Pattern{Subject: []byte("a")})
+	results, _ = db.Get(context.Background(), &graph.Pattern{Subject: []byte("a")})
 	if len(results) != 0 {
 		t.Fatal("triple should not exist after delete")
 	}
@@ -403,8 +406,8 @@ func TestDB_MultipleTriples(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	t1 := NewTripleFromStrings("a1", "b", "c")
-	t2 := NewTripleFromStrings("a2", "b", "d")
+	t1 := graph.NewTripleFromStrings("a1", "b", "c")
+	t2 := graph.NewTripleFromStrings("a2", "b", "d")
 
 	err := db.Put(context.Background(), t1, t2)
 	if err != nil {
@@ -412,7 +415,7 @@ func TestDB_MultipleTriples(t *testing.T) {
 	}
 
 	t.Run("Get by shared predicate", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("b")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -422,7 +425,7 @@ func TestDB_MultipleTriples(t *testing.T) {
 	})
 
 	t.Run("Get by specific subject", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a1")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a1")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -437,11 +440,11 @@ func TestDB_Limit(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	t1 := NewTripleFromStrings("a1", "b", "c")
-	t2 := NewTripleFromStrings("a2", "b", "d")
+	t1 := graph.NewTripleFromStrings("a1", "b", "c")
+	t2 := graph.NewTripleFromStrings("a2", "b", "d")
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("b"), Limit: 1})
+	results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("b"), Limit: 1})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -455,11 +458,11 @@ func TestDB_Offset(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	t1 := NewTripleFromStrings("a1", "b", "c")
-	t2 := NewTripleFromStrings("a2", "b", "d")
+	t1 := graph.NewTripleFromStrings("a1", "b", "c")
+	t2 := graph.NewTripleFromStrings("a2", "b", "d")
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("b"), Offset: 1})
+	results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("b"), Offset: 1})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -473,15 +476,15 @@ func TestDB_Filter(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	t1 := NewTripleFromStrings("a", "b", "c")
-	t2 := NewTripleFromStrings("a", "b", "d")
+	t1 := graph.NewTripleFromStrings("a", "b", "c")
+	t2 := graph.NewTripleFromStrings("a", "b", "d")
 	db.Put(context.Background(), t1, t2)
 
-	filter := func(triple *Triple) bool {
+	filter := func(triple *graph.Triple) bool {
 		return string(triple.Object) == "d"
 	}
 
-	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a"), Filter: filter})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a"), Filter: filter})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -499,13 +502,13 @@ func TestDB_SpecialCharacters(t *testing.T) {
 	defer cleanup()
 
 	t.Run("String with ::", func(t *testing.T) {
-		triple := NewTripleFromStrings("a::b", "predicate", "object")
+		triple := graph.NewTripleFromStrings("a::b", "predicate", "object")
 		err := db.Put(context.Background(), triple)
 		if err != nil {
 			t.Fatalf("Put failed: %v", err)
 		}
 
-		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a::b")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a::b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -518,13 +521,13 @@ func TestDB_SpecialCharacters(t *testing.T) {
 	})
 
 	t.Run("String with backslash", func(t *testing.T) {
-		triple := NewTripleFromStrings("a\\b", "predicate", "object")
+		triple := graph.NewTripleFromStrings("a\\b", "predicate", "object")
 		err := db.Put(context.Background(), triple)
 		if err != nil {
 			t.Fatalf("Put failed: %v", err)
 		}
 
-		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a\\b")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a\\b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -562,7 +565,7 @@ func TestGenerateBatch(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	triple := NewTripleFromStrings("a", "b", "c")
+	triple := graph.NewTripleFromStrings("a", "b", "c")
 	ops, err := db.GenerateBatch(triple, "put")
 	if err != nil {
 		t.Fatalf("GenerateBatch failed: %v", err)
@@ -581,17 +584,17 @@ func TestGenerateBatch(t *testing.T) {
 
 // setupFOAFData sets up the FOAF test data from the JS fixtures
 func setupFOAFData(db *DB) error {
-	triples := []*Triple{
-		NewTripleFromStrings("matteo", "friend", "daniele"),
-		NewTripleFromStrings("daniele", "friend", "matteo"),
-		NewTripleFromStrings("daniele", "friend", "marco"),
-		NewTripleFromStrings("lucio", "friend", "matteo"),
-		NewTripleFromStrings("lucio", "friend", "marco"),
-		NewTripleFromStrings("marco", "friend", "davide"),
-		NewTripleFromStrings("marco", "age", "32"),
-		NewTripleFromStrings("daniele", "age", "25"),
-		NewTripleFromStrings("lucio", "age", "15"),
-		NewTripleFromStrings("davide", "age", "70"),
+	triples := []*graph.Triple{
+		graph.NewTripleFromStrings("matteo", "friend", "daniele"),
+		graph.NewTripleFromStrings("daniele", "friend", "matteo"),
+		graph.NewTripleFromStrings("daniele", "friend", "marco"),
+		graph.NewTripleFromStrings("lucio", "friend", "matteo"),
+		graph.NewTripleFromStrings("lucio", "friend", "marco"),
+		graph.NewTripleFromStrings("marco", "friend", "davide"),
+		graph.NewTripleFromStrings("marco", "age", "32"),
+		graph.NewTripleFromStrings("daniele", "age", "25"),
+		graph.NewTripleFromStrings("lucio", "age", "15"),
+		graph.NewTripleFromStrings("davide", "age", "70"),
 	}
 	return db.Put(context.Background(), triples...)
 }
@@ -608,7 +611,7 @@ func TestSearch_SinglePattern(t *testing.T) {
 	t.Run("search with one result", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*Pattern{
 			{
-				Subject:   V("x"),
+				Subject:   graph.V("x"),
 				Predicate: []byte("friend"),
 				Object:    []byte("daniele"),
 			},
@@ -627,7 +630,7 @@ func TestSearch_SinglePattern(t *testing.T) {
 	t.Run("search with multiple results", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*Pattern{
 			{
-				Subject:   V("x"),
+				Subject:   graph.V("x"),
 				Predicate: []byte("friend"),
 				Object:    []byte("marco"),
 			},
@@ -654,12 +657,12 @@ func TestSearch_Join(t *testing.T) {
 		// Find people who are friends with both marco and matteo
 		results, err := db.Search(context.Background(), []*Pattern{
 			{
-				Subject:   V("x"),
+				Subject:   graph.V("x"),
 				Predicate: []byte("friend"),
 				Object:    []byte("marco"),
 			},
 			{
-				Subject:   V("x"),
+				Subject:   graph.V("x"),
 				Predicate: []byte("friend"),
 				Object:    []byte("matteo"),
 			},
@@ -687,15 +690,15 @@ func TestSearch_Join(t *testing.T) {
 			{
 				Subject:   []byte("matteo"),
 				Predicate: []byte("friend"),
-				Object:    V("x"),
+				Object:    graph.V("x"),
 			},
 			{
-				Subject:   V("x"),
+				Subject:   graph.V("x"),
 				Predicate: []byte("friend"),
-				Object:    V("y"),
+				Object:    graph.V("y"),
 			},
 			{
-				Subject:   V("y"),
+				Subject:   graph.V("y"),
 				Predicate: []byte("friend"),
 				Object:    []byte("davide"),
 			},
@@ -718,14 +721,14 @@ func TestSearch_Join(t *testing.T) {
 		// Find pairs where both are friends with each other
 		results, err := db.Search(context.Background(), []*Pattern{
 			{
-				Subject:   V("x"),
+				Subject:   graph.V("x"),
 				Predicate: []byte("friend"),
-				Object:    V("y"),
+				Object:    graph.V("y"),
 			},
 			{
-				Subject:   V("y"),
+				Subject:   graph.V("y"),
 				Predicate: []byte("friend"),
-				Object:    V("x"),
+				Object:    graph.V("x"),
 			},
 		}, nil)
 		if err != nil {
@@ -743,12 +746,12 @@ func TestSearch_Join(t *testing.T) {
 			{
 				Subject:   []byte("lucio"),
 				Predicate: []byte("friend"),
-				Object:    V("x"),
+				Object:    graph.V("x"),
 			},
 			{
 				Subject:   []byte("daniele"),
 				Predicate: []byte("friend"),
-				Object:    V("x"),
+				Object:    graph.V("x"),
 			},
 		}, nil)
 		if err != nil {
@@ -772,12 +775,12 @@ func TestSearch_Limit(t *testing.T) {
 
 	results, err := db.Search(context.Background(), []*Pattern{
 		{
-			Subject:   V("x"),
+			Subject:   graph.V("x"),
 			Predicate: []byte("friend"),
 			Object:    []byte("marco"),
 		},
 		{
-			Subject:   V("x"),
+			Subject:   graph.V("x"),
 			Predicate: []byte("friend"),
 			Object:    []byte("matteo"),
 		},
@@ -801,12 +804,12 @@ func TestSearch_Offset(t *testing.T) {
 
 	results, err := db.Search(context.Background(), []*Pattern{
 		{
-			Subject:   V("x"),
+			Subject:   graph.V("x"),
 			Predicate: []byte("friend"),
 			Object:    []byte("marco"),
 		},
 		{
-			Subject:   V("x"),
+			Subject:   graph.V("x"),
 			Predicate: []byte("friend"),
 			Object:    []byte("matteo"),
 		},
@@ -832,15 +835,15 @@ func TestSearch_SolutionFilter(t *testing.T) {
 		{
 			Subject:   []byte("matteo"),
 			Predicate: []byte("friend"),
-			Object:    V("y"),
+			Object:    graph.V("y"),
 		},
 		{
-			Subject:   V("y"),
+			Subject:   graph.V("y"),
 			Predicate: []byte("friend"),
-			Object:    V("x"),
+			Object:    graph.V("x"),
 		},
 	}, &SearchOptions{
-		Filter: func(s Solution) bool {
+		Filter: func(s graph.Solution) bool {
 			return string(s["x"]) != "matteo"
 		},
 	})
@@ -865,18 +868,18 @@ func TestSearch_Materialized(t *testing.T) {
 
 	results, err := db.Search(context.Background(), []*Pattern{
 		{
-			Subject:   V("x"),
+			Subject:   graph.V("x"),
 			Predicate: []byte("friend"),
 			Object:    []byte("marco"),
 		},
 		{
-			Subject:   V("x"),
+			Subject:   graph.V("x"),
 			Predicate: []byte("friend"),
 			Object:    []byte("matteo"),
 		},
 	}, &SearchOptions{
-		Materialized: &Pattern{
-			Subject:   V("x"),
+		Materialized: &graph.Pattern{
+			Subject:   graph.V("x"),
 			Predicate: []byte("newpredicate"),
 			Object:    []byte("abcde"),
 		},
@@ -909,10 +912,10 @@ func TestSearch_PatternFilter(t *testing.T) {
 	// Find friends of daniele but filter at pattern level
 	results, err := db.Search(context.Background(), []*Pattern{
 		{
-			Subject:   V("x"),
+			Subject:   graph.V("x"),
 			Predicate: []byte("friend"),
 			Object:    []byte("daniele"),
-			Filter: func(t *Triple) bool {
+			Filter: func(t *graph.Triple) bool {
 				return string(t.Subject) != "matteo"
 			},
 		},
@@ -948,7 +951,7 @@ func TestSearchIterator(t *testing.T) {
 
 	iter, err := db.SearchIterator(context.Background(), []*Pattern{
 		{
-			Subject:   V("x"),
+			Subject:   graph.V("x"),
 			Predicate: []byte("friend"),
 			Object:    []byte("marco"),
 		},
@@ -1350,7 +1353,7 @@ func TestJournal_RecordsOperations(t *testing.T) {
 	defer cleanup()
 
 	// Put a triple
-	t1 := NewTripleFromStrings("a", "b", "c")
+	t1 := graph.NewTripleFromStrings("a", "b", "c")
 	if err := db.Put(context.Background(), t1); err != nil {
 		t.Fatalf("Put failed: %v", err)
 	}
@@ -1400,8 +1403,8 @@ func TestJournal_Trim(t *testing.T) {
 	defer cleanup()
 
 	// Put some triples
-	t1 := NewTripleFromStrings("a", "b", "c")
-	t2 := NewTripleFromStrings("d", "e", "f")
+	t1 := graph.NewTripleFromStrings("a", "b", "c")
+	t2 := graph.NewTripleFromStrings("d", "e", "f")
 	db.Put(context.Background(), t1)
 
 	// Wait a tiny bit to ensure different timestamps
@@ -1449,8 +1452,8 @@ func TestJournal_TrimAndExport(t *testing.T) {
 	defer exportDB.Close()
 
 	// Put some triples
-	t1 := NewTripleFromStrings("a", "b", "c")
-	t2 := NewTripleFromStrings("d", "e", "f")
+	t1 := graph.NewTripleFromStrings("a", "b", "c")
+	t2 := graph.NewTripleFromStrings("d", "e", "f")
 	db.Put(context.Background(), t1)
 
 	time.Sleep(10 * time.Millisecond)
@@ -1497,8 +1500,8 @@ func TestJournal_Replay(t *testing.T) {
 	defer replayDB.Close()
 
 	// Put some triples
-	t1 := NewTripleFromStrings("a", "b", "c")
-	t2 := NewTripleFromStrings("d", "e", "f")
+	t1 := graph.NewTripleFromStrings("a", "b", "c")
+	t2 := graph.NewTripleFromStrings("d", "e", "f")
 	db.Put(context.Background(), t1)
 	db.Put(context.Background(), t2)
 	db.Del(context.Background(), t1)
@@ -1513,12 +1516,12 @@ func TestJournal_Replay(t *testing.T) {
 	}
 
 	// Check replay result - should only have t2
-	results1, _ := replayDB.Get(context.Background(), &Pattern{Subject: []byte("a")})
+	results1, _ := replayDB.Get(context.Background(), &graph.Pattern{Subject: []byte("a")})
 	if len(results1) != 0 {
 		t.Error("expected triple 'a' to be deleted")
 	}
 
-	results2, _ := replayDB.Get(context.Background(), &Pattern{Subject: []byte("d")})
+	results2, _ := replayDB.Get(context.Background(), &graph.Pattern{Subject: []byte("d")})
 	if len(results2) != 1 {
 		t.Error("expected triple 'd' to exist")
 	}
@@ -1529,7 +1532,7 @@ func TestJournal_DisabledByDefault(t *testing.T) {
 	defer cleanup()
 
 	// Put a triple (journal should be disabled)
-	t1 := NewTripleFromStrings("a", "b", "c")
+	t1 := graph.NewTripleFromStrings("a", "b", "c")
 	db.Put(context.Background(), t1)
 
 	// Journal should be empty
@@ -1544,9 +1547,9 @@ func TestJournal_Iterator(t *testing.T) {
 	defer cleanup()
 
 	// Put some triples
-	db.Put(context.Background(), NewTripleFromStrings("a", "b", "c"))
-	db.Put(context.Background(), NewTripleFromStrings("d", "e", "f"))
-	db.Put(context.Background(), NewTripleFromStrings("g", "h", "i"))
+	db.Put(context.Background(), graph.NewTripleFromStrings("a", "b", "c"))
+	db.Put(context.Background(), graph.NewTripleFromStrings("d", "e", "f"))
+	db.Put(context.Background(), graph.NewTripleFromStrings("g", "h", "i"))
 
 	iter, err := db.GetJournalIterator(context.Background(), time.Time{})
 	if err != nil {
@@ -1660,7 +1663,7 @@ func TestFacet_TripleFacets(t *testing.T) {
 	db, cleanup := setupFacetDB(t)
 	defer cleanup()
 
-	triple := NewTripleFromStrings("alice", "knows", "bob")
+	triple := graph.NewTripleFromStrings("alice", "knows", "bob")
 
 	// Put the triple
 	db.Put(context.Background(), triple)
@@ -1813,13 +1816,13 @@ func TestUnicode_BasicTriple(t *testing.T) {
 	defer cleanup()
 
 	// Chinese characters
-	triple := NewTriple([]byte("车"), []byte("是"), []byte("交通工具"))
+	triple := graph.NewTriple([]byte("车"), []byte("是"), []byte("交通工具"))
 	err := db.Put(context.Background(), triple)
 	if err != nil {
 		t.Fatalf("Put failed: %v", err)
 	}
 
-	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("车")})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("车")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -1836,14 +1839,14 @@ func TestUnicode_Emoji(t *testing.T) {
 	defer cleanup()
 
 	// Emoji and special unicode characters from JS test
-	triple := NewTriple([]byte("􀃿"), []byte("🜁"), []byte("🚃"))
+	triple := graph.NewTriple([]byte("􀃿"), []byte("🜁"), []byte("🚃"))
 	err := db.Put(context.Background(), triple)
 	if err != nil {
 		t.Fatalf("Put failed: %v", err)
 	}
 
 	t.Run("Get by subject", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("􀃿")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("􀃿")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1853,7 +1856,7 @@ func TestUnicode_Emoji(t *testing.T) {
 	})
 
 	t.Run("Get by object", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &Pattern{Object: []byte("🚃")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Object: []byte("🚃")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1863,7 +1866,7 @@ func TestUnicode_Emoji(t *testing.T) {
 	})
 
 	t.Run("Get by predicate", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("🜁")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("🜁")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1873,7 +1876,7 @@ func TestUnicode_Emoji(t *testing.T) {
 	})
 
 	t.Run("Get by subject and predicate", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &Pattern{Subject: []byte("􀃿"), Predicate: []byte("🜁")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("􀃿"), Predicate: []byte("🜁")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1888,11 +1891,11 @@ func TestUnicode_ExactMatch(t *testing.T) {
 	defer cleanup()
 
 	// Chinese characters - test exact matching
-	t1 := NewTriple([]byte("飞机"), []byte("是"), []byte("交通工具"))
-	t2 := NewTriple([]byte("车"), []byte("是"), []byte("动物"))
+	t1 := graph.NewTriple([]byte("飞机"), []byte("是"), []byte("交通工具"))
+	t2 := graph.NewTriple([]byte("车"), []byte("是"), []byte("动物"))
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("车")})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("车")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -1908,12 +1911,12 @@ func TestUnicode_MultipleTriples(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	t1 := NewTriple([]byte("飞机"), []byte("是"), []byte("交通工具"))
-	t2 := NewTriple([]byte("狗熊"), []byte("是"), []byte("动物"))
+	t1 := graph.NewTriple([]byte("飞机"), []byte("是"), []byte("交通工具"))
+	t2 := graph.NewTriple([]byte("狗熊"), []byte("是"), []byte("动物"))
 	db.Put(context.Background(), t1, t2)
 
 	t.Run("Get by shared predicate", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("是")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("是")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1924,7 +1927,7 @@ func TestUnicode_MultipleTriples(t *testing.T) {
 
 	t.Run("Delete and verify", func(t *testing.T) {
 		db.Del(context.Background(), t2)
-		results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("是")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("是")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1938,15 +1941,15 @@ func TestUnicode_Filter(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	t1 := NewTriple([]byte("车"), []byte("是"), []byte("动物"))
-	t2 := NewTriple([]byte("车"), []byte("是"), []byte("交通工具"))
+	t1 := graph.NewTriple([]byte("车"), []byte("是"), []byte("动物"))
+	t2 := graph.NewTriple([]byte("车"), []byte("是"), []byte("交通工具"))
 	db.Put(context.Background(), t1, t2)
 
-	filter := func(triple *Triple) bool {
+	filter := func(triple *graph.Triple) bool {
 		return string(triple.Object) == "动物"
 	}
 
-	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("车"), Predicate: []byte("是"), Filter: filter})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("车"), Predicate: []byte("是"), Filter: filter})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -1969,13 +1972,13 @@ func TestBinary_ArbitraryBytes(t *testing.T) {
 	predicate := []byte{0x10, 0x20, 0x30}
 	object := []byte{0xAA, 0xBB, 0xCC, 0x00, 0xDD}
 
-	triple := NewTriple(subject, predicate, object)
+	triple := graph.NewTriple(subject, predicate, object)
 	err := db.Put(context.Background(), triple)
 	if err != nil {
 		t.Fatalf("Put failed: %v", err)
 	}
 
-	results, err := db.Get(context.Background(), &Pattern{Subject: subject})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: subject})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2004,10 +2007,10 @@ func TestBinary_MixedContent(t *testing.T) {
 	predicate := []byte("avatar")
 	object := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A} // PNG magic bytes
 
-	triple := NewTriple(subject, predicate, object)
+	triple := graph.NewTriple(subject, predicate, object)
 	db.Put(context.Background(), triple)
 
-	results, err := db.Get(context.Background(), &Pattern{Subject: subject, Predicate: predicate})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: subject, Predicate: predicate})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2028,11 +2031,11 @@ func TestEdgeCase_PrefixMatching(t *testing.T) {
 	defer cleanup()
 
 	// Ensure 'a' doesn't match 'a1'
-	t1 := NewTripleFromStrings("a1", "b", "c")
-	t2 := NewTripleFromStrings("a", "b", "d")
+	t1 := graph.NewTripleFromStrings("a1", "b", "c")
+	t2 := graph.NewTripleFromStrings("a", "b", "d")
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a")})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2048,11 +2051,11 @@ func TestEdgeCase_StringEndingWithColon(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	t1 := NewTripleFromStrings("a", "b", "c")
-	t2 := NewTripleFromStrings("a:", "b", "c")
+	t1 := graph.NewTripleFromStrings("a", "b", "c")
+	t2 := graph.NewTripleFromStrings("a:", "b", "c")
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a:")})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a:")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2068,11 +2071,11 @@ func TestEdgeCase_StringEndingWithBackslash(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	t1 := NewTripleFromStrings("a", "b", "c")
-	t2 := NewTripleFromStrings("a\\", "b", "c")
+	t1 := graph.NewTripleFromStrings("a", "b", "c")
+	t2 := graph.NewTripleFromStrings("a\\", "b", "c")
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a\\")})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a\\")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2084,15 +2087,15 @@ func TestEdgeCase_StringEndingWithBackslash(t *testing.T) {
 	}
 }
 
-func TestEdgeCase_StringWithEscapedSeparator(t *testing.T) {
+func TestEdgeCase_StringWithIndexEscapedSeparator(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	t1 := NewTripleFromStrings("a", "b", "c")
-	t2 := NewTripleFromStrings("a\\::a", "b", "c")
+	t1 := graph.NewTripleFromStrings("a", "b", "c")
+	t2 := graph.NewTripleFromStrings("a\\::a", "b", "c")
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a")})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2105,12 +2108,12 @@ func TestEdgeCase_EmptyPattern(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	t1 := NewTripleFromStrings("a", "b", "c")
-	t2 := NewTripleFromStrings("d", "e", "f")
+	t1 := graph.NewTripleFromStrings("a", "b", "c")
+	t2 := graph.NewTripleFromStrings("d", "e", "f")
 	db.Put(context.Background(), t1, t2)
 
 	// Empty pattern should return all triples
-	results, err := db.Get(context.Background(), &Pattern{})
+	results, err := db.Get(context.Background(), &graph.Pattern{})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2123,11 +2126,11 @@ func TestEdgeCase_Reverse(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	t1 := NewTripleFromStrings("a1", "b", "c")
-	t2 := NewTripleFromStrings("a2", "b", "d")
+	t1 := graph.NewTripleFromStrings("a1", "b", "c")
+	t2 := graph.NewTripleFromStrings("a2", "b", "d")
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("b"), Reverse: true})
+	results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("b"), Reverse: true})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2147,12 +2150,12 @@ func TestEdgeCase_ReverseLimitOffset(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	t1 := NewTripleFromStrings("a1", "b", "c")
-	t2 := NewTripleFromStrings("a2", "b", "d")
-	t3 := NewTripleFromStrings("a3", "b", "e")
+	t1 := graph.NewTripleFromStrings("a1", "b", "c")
+	t2 := graph.NewTripleFromStrings("a2", "b", "d")
+	t3 := graph.NewTripleFromStrings("a3", "b", "e")
 	db.Put(context.Background(), t1, t2, t3)
 
-	results, err := db.Get(context.Background(), &Pattern{Predicate: []byte("b"), Reverse: true, Limit: 1})
+	results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("b"), Reverse: true, Limit: 1})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2169,7 +2172,7 @@ func TestEdgeCase_ReverseLimitOffset(t *testing.T) {
 // ============================================================================
 
 func TestTriple_String(t *testing.T) {
-	triple := NewTripleFromStrings("alice", "knows", "bob")
+	triple := graph.NewTripleFromStrings("alice", "knows", "bob")
 	str := triple.String()
 	expected := "alice knows bob"
 	if str != expected {
@@ -2178,7 +2181,7 @@ func TestTriple_String(t *testing.T) {
 }
 
 func TestTriple_Set(t *testing.T) {
-	triple := NewTripleFromStrings("a", "b", "c")
+	triple := graph.NewTripleFromStrings("a", "b", "c")
 
 	triple.Set("subject", []byte("x"))
 	if string(triple.Subject) != "x" {
@@ -2203,8 +2206,8 @@ func TestTriple_Set(t *testing.T) {
 }
 
 func TestVariable_GetValue(t *testing.T) {
-	v := V("x")
-	sol := Solution{"x": []byte("value")}
+	v := graph.V("x")
+	sol := graph.Solution{"x": []byte("value")}
 
 	result := v.GetValue(sol)
 	if string(result) != "value" {
@@ -2212,7 +2215,7 @@ func TestVariable_GetValue(t *testing.T) {
 	}
 
 	// Unbound variable
-	emptySol := Solution{}
+	emptySol := graph.Solution{}
 	result = v.GetValue(emptySol)
 	if result != nil {
 		t.Error("unbound variable should return nil")
@@ -2220,10 +2223,10 @@ func TestVariable_GetValue(t *testing.T) {
 }
 
 func TestVariable_Equal(t *testing.T) {
-	sol1 := Solution{"x": []byte("a"), "y": []byte("b")}
-	sol2 := Solution{"x": []byte("a"), "y": []byte("b")}
-	sol3 := Solution{"x": []byte("a"), "y": []byte("c")}
-	sol4 := Solution{"x": []byte("a")}
+	sol1 := graph.Solution{"x": []byte("a"), "y": []byte("b")}
+	sol2 := graph.Solution{"x": []byte("a"), "y": []byte("b")}
+	sol3 := graph.Solution{"x": []byte("a"), "y": []byte("c")}
+	sol4 := graph.Solution{"x": []byte("a")}
 
 	if !sol1.Equal(sol2) {
 		t.Error("identical solutions should be equal")
@@ -2237,64 +2240,64 @@ func TestVariable_Equal(t *testing.T) {
 }
 
 func TestIsVariable(t *testing.T) {
-	v := V("x")
-	if !IsVariable(v) {
-		t.Error("V() result should be a Variable")
+	v := graph.V("x")
+	if !graph.IsVariable(v) {
+		t.Error("graph.V() result should be a Variable")
 	}
-	if IsVariable([]byte("test")) {
+	if graph.IsVariable([]byte("test")) {
 		t.Error("[]byte should not be a Variable")
 	}
-	if IsVariable("test") {
+	if graph.IsVariable("test") {
 		t.Error("string should not be a Variable")
 	}
-	if IsVariable(nil) {
+	if graph.IsVariable(nil) {
 		t.Error("nil should not be a Variable")
 	}
 }
 
 func TestAsVariable(t *testing.T) {
-	v := V("x")
-	result, ok := AsVariable(v)
+	v := graph.V("x")
+	result, ok := graph.AsVariable(v)
 	if !ok {
-		t.Error("AsVariable should succeed for Variable")
+		t.Error("graph.AsVariable should succeed for Variable")
 	}
 	if result.Name != "x" {
 		t.Errorf("expected name 'x', got '%s'", result.Name)
 	}
 
-	result, ok = AsVariable([]byte("test"))
+	result, ok = graph.AsVariable([]byte("test"))
 	if ok {
-		t.Error("AsVariable should fail for []byte")
+		t.Error("graph.AsVariable should fail for []byte")
 	}
 	if result != nil {
-		t.Error("AsVariable should return nil for non-Variable")
+		t.Error("graph.AsVariable should return nil for non-Variable")
 	}
 }
 
 func TestPattern_HasVariable(t *testing.T) {
-	p1 := &Pattern{Subject: []byte("a"), Predicate: []byte("b"), Object: []byte("c")}
+	p1 := &graph.Pattern{Subject: []byte("a"), Predicate: []byte("b"), Object: []byte("c")}
 	if p1.HasVariable() {
 		t.Error("pattern without variables should return false")
 	}
 
-	p2 := &Pattern{Subject: V("x"), Predicate: []byte("b"), Object: []byte("c")}
+	p2 := &graph.Pattern{Subject: graph.V("x"), Predicate: []byte("b"), Object: []byte("c")}
 	if !p2.HasVariable() {
 		t.Error("pattern with subject variable should return true")
 	}
 
-	p3 := &Pattern{Subject: []byte("a"), Predicate: V("p"), Object: []byte("c")}
+	p3 := &graph.Pattern{Subject: []byte("a"), Predicate: graph.V("p"), Object: []byte("c")}
 	if !p3.HasVariable() {
 		t.Error("pattern with predicate variable should return true")
 	}
 
-	p4 := &Pattern{Subject: []byte("a"), Predicate: []byte("b"), Object: V("o")}
+	p4 := &graph.Pattern{Subject: []byte("a"), Predicate: []byte("b"), Object: graph.V("o")}
 	if !p4.HasVariable() {
 		t.Error("pattern with object variable should return true")
 	}
 }
 
 func TestPattern_VariableFields(t *testing.T) {
-	p := &Pattern{Subject: V("s"), Predicate: []byte("p"), Object: V("o")}
+	p := &graph.Pattern{Subject: graph.V("s"), Predicate: []byte("p"), Object: graph.V("o")}
 	fields := p.VariableFields()
 
 	if len(fields) != 2 {
@@ -2313,7 +2316,7 @@ func TestPattern_VariableFields(t *testing.T) {
 
 func TestPattern_ToTriple(t *testing.T) {
 	// Pattern with all concrete values
-	p1 := &Pattern{Subject: []byte("a"), Predicate: []byte("b"), Object: []byte("c")}
+	p1 := &graph.Pattern{Subject: []byte("a"), Predicate: []byte("b"), Object: []byte("c")}
 	triple := p1.ToTriple()
 	if triple == nil {
 		t.Fatal("expected triple, got nil")
@@ -2323,13 +2326,13 @@ func TestPattern_ToTriple(t *testing.T) {
 	}
 
 	// Pattern with nil field
-	p2 := &Pattern{Subject: []byte("a"), Predicate: nil, Object: []byte("c")}
+	p2 := &graph.Pattern{Subject: []byte("a"), Predicate: nil, Object: []byte("c")}
 	if p2.ToTriple() != nil {
 		t.Error("pattern with nil field should return nil")
 	}
 
 	// Pattern with variable
-	p3 := &Pattern{Subject: []byte("a"), Predicate: V("p"), Object: []byte("c")}
+	p3 := &graph.Pattern{Subject: []byte("a"), Predicate: graph.V("p"), Object: []byte("c")}
 	if p3.ToTriple() != nil {
 		t.Error("pattern with variable should return nil")
 	}
@@ -2341,7 +2344,7 @@ func TestDB_V(t *testing.T) {
 
 	v := db.V("test")
 	if v == nil {
-		t.Fatal("V should return a Variable")
+		t.Fatal("graph.V should return a Variable")
 	}
 	if v.Name != "test" {
 		t.Errorf("expected name 'test', got '%s'", v.Name)
@@ -2366,11 +2369,11 @@ func TestDB_GetIterator(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	t1 := NewTripleFromStrings("a", "b", "c")
-	t2 := NewTripleFromStrings("a", "b", "d")
+	t1 := graph.NewTripleFromStrings("a", "b", "c")
+	t2 := graph.NewTripleFromStrings("a", "b", "d")
 	db.Put(context.Background(), t1, t2)
 
-	iter, err := db.GetIterator(context.Background(), &Pattern{Subject: []byte("a")})
+	iter, err := db.GetIterator(context.Background(), &graph.Pattern{Subject: []byte("a")})
 	if err != nil {
 		t.Fatalf("GetIterator failed: %v", err)
 	}
@@ -2394,12 +2397,12 @@ func TestDB_GetIterator(t *testing.T) {
 
 func TestParseKey(t *testing.T) {
 	// Generate a key and parse it back
-	triple := NewTripleFromStrings("alice", "knows", "bob")
-	key := GenKey(IndexSPO, triple)
+	triple := graph.NewTripleFromStrings("alice", "knows", "bob")
+	key := index.GenKey(index.IndexSPO, triple)
 
-	indexName, values := ParseKey(key)
-	if indexName != IndexSPO {
-		t.Errorf("expected index %s, got %s", IndexSPO, indexName)
+	indexName, values := index.ParseKey(key)
+	if indexName != index.IndexSPO {
+		t.Errorf("expected index %s, got %s", index.IndexSPO, indexName)
 	}
 	if len(values) != 3 {
 		t.Fatalf("expected 3 values, got %d", len(values))
@@ -2415,7 +2418,7 @@ func TestParseKey(t *testing.T) {
 	}
 
 	// Test empty key
-	indexName, values = ParseKey([]byte{})
+	indexName, values = index.ParseKey([]byte{})
 	if indexName != "" {
 		t.Error("empty key should return empty index name")
 	}
@@ -2429,21 +2432,21 @@ func TestNavigator_Triples(t *testing.T) {
 	defer cleanup()
 
 	db.Put(context.Background(),
-		NewTripleFromStrings("alice", "knows", "bob"),
-		NewTripleFromStrings("bob", "knows", "charlie"),
+		graph.NewTripleFromStrings("alice", "knows", "bob"),
+		graph.NewTripleFromStrings("bob", "knows", "charlie"),
 	)
 
 	// Use Where to add a pattern that binds subject, predicate, object
-	nav := db.Nav(context.Background(), nil).Where(&Pattern{
-		Subject:   V("s"),
-		Predicate: V("p"),
-		Object:    V("o"),
+	nav := db.Nav(context.Background(), nil).Where(&graph.Pattern{
+		Subject:   graph.V("s"),
+		Predicate: graph.V("p"),
+		Object:    graph.V("o"),
 	})
 	// Materialize the solutions into triples using the variable names
-	triples, err := nav.Triples(&Pattern{
-		Subject:   V("s"),
-		Predicate: V("p"),
-		Object:    V("o"),
+	triples, err := nav.Triples(&graph.Pattern{
+		Subject:   graph.V("s"),
+		Predicate: graph.V("p"),
+		Object:    graph.V("o"),
 	})
 	if err != nil {
 		t.Fatalf("Triples failed: %v", err)
@@ -2454,7 +2457,7 @@ func TestNavigator_Triples(t *testing.T) {
 
 	// Empty navigator
 	emptyNav := &Navigator{db: db}
-	triples, err = emptyNav.Triples(&Pattern{})
+	triples, err = emptyNav.Triples(&graph.Pattern{})
 	if err != nil {
 		t.Fatalf("empty Triples failed: %v", err)
 	}
@@ -2468,19 +2471,19 @@ func TestNavigator_Filter(t *testing.T) {
 	defer cleanup()
 
 	db.Put(context.Background(),
-		NewTripleFromStrings("alice", "age", "30"),
-		NewTripleFromStrings("bob", "age", "25"),
+		graph.NewTripleFromStrings("alice", "age", "30"),
+		graph.NewTripleFromStrings("bob", "age", "25"),
 	)
 
 	nav := db.Nav(context.Background(), nil)
-	nav.conditions = append(nav.conditions, &Pattern{Predicate: []byte("age"), Object: V("age")})
-	nav = nav.Filter(func(t *Triple) bool {
+	nav.conditions = append(nav.conditions, &graph.Pattern{Predicate: []byte("age"), Object: graph.V("age")})
+	nav = nav.Filter(func(t *graph.Triple) bool {
 		return string(t.Subject) == "alice"
 	})
 
 	solutions, err := nav.Solutions()
 	if err != nil {
-		t.Fatalf("Solutions failed: %v", err)
+		t.Fatalf("graph.Solutions failed: %v", err)
 	}
 	if len(solutions) != 1 {
 		t.Errorf("expected 1 solution after filter, got %d", len(solutions))
@@ -2491,17 +2494,17 @@ func TestNavigator_Where(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	db.Put(context.Background(), NewTripleFromStrings("alice", "knows", "bob"))
+	db.Put(context.Background(), graph.NewTripleFromStrings("alice", "knows", "bob"))
 
-	nav := db.Nav(context.Background(), nil).Where(&Pattern{
-		Subject:   V("s"),
+	nav := db.Nav(context.Background(), nil).Where(&graph.Pattern{
+		Subject:   graph.V("s"),
 		Predicate: []byte("knows"),
-		Object:    V("o"),
+		Object:    graph.V("o"),
 	})
 
 	solutions, err := nav.Solutions()
 	if err != nil {
-		t.Fatalf("Solutions failed: %v", err)
+		t.Fatalf("graph.Solutions failed: %v", err)
 	}
 	if len(solutions) != 1 {
 		t.Errorf("expected 1 solution, got %d", len(solutions))
@@ -2547,7 +2550,7 @@ func TestJournalIterator_Key(t *testing.T) {
 	defer db.Close()
 
 	// Add a triple to create journal entry
-	db.Put(context.Background(), NewTripleFromStrings("a", "b", "c"))
+	db.Put(context.Background(), graph.NewTripleFromStrings("a", "b", "c"))
 
 	iter, err := db.GetJournalIterator(context.Background(), time.Time{})
 	if err != nil {
@@ -2581,7 +2584,7 @@ func TestGetTripleFacetIterator(t *testing.T) {
 	}
 	defer db.Close()
 
-	triple := NewTripleFromStrings("alice", "knows", "bob")
+	triple := graph.NewTripleFromStrings("alice", "knows", "bob")
 	db.Put(context.Background(), triple)
 	db.SetTripleFacet(context.Background(), triple, []byte("since"), []byte("2020"))
 	db.SetTripleFacet(context.Background(), triple, []byte("strength"), []byte("strong"))
@@ -2632,12 +2635,12 @@ func TestOpenWithDB(t *testing.T) {
 	}
 
 	// Verify it works
-	triple := NewTripleFromStrings("a", "b", "c")
+	triple := graph.NewTripleFromStrings("a", "b", "c")
 	if err := db.Put(context.Background(), triple); err != nil {
 		t.Fatalf("Put failed: %v", err)
 	}
 
-	results, err := db.Get(context.Background(), &Pattern{Subject: []byte("a")})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2700,19 +2703,19 @@ func TestValidateTriple_EdgeCases(t *testing.T) {
 
 func TestNewPattern_EdgeCases(t *testing.T) {
 	// Empty byte slice treated as nil
-	p := NewPattern([]byte{}, "pred", "obj")
+	p := graph.NewPattern([]byte{}, "pred", "obj")
 	if p.Subject != nil {
 		t.Error("empty []byte should be treated as nil")
 	}
 
 	// Empty string treated as nil
-	p = NewPattern("", "pred", "obj")
+	p = graph.NewPattern("", "pred", "obj")
 	if p.Subject != nil {
 		t.Error("empty string should be treated as nil")
 	}
 
 	// Bool values
-	p = NewPattern(true, false, "obj")
+	p = graph.NewPattern(true, false, "obj")
 	if string(p.Subject.([]byte)) != "true" {
 		t.Errorf("expected 'true', got '%s'", p.Subject)
 	}
@@ -2721,14 +2724,14 @@ func TestNewPattern_EdgeCases(t *testing.T) {
 	}
 
 	// Unknown type defaults to nil
-	p = NewPattern(123, "pred", "obj")
+	p = graph.NewPattern(123, "pred", "obj")
 	if p.Subject != nil {
 		t.Error("unknown type should be treated as nil")
 	}
 }
 
 func TestTriple_Equal_NilCases(t *testing.T) {
-	triple := NewTripleFromStrings("a", "b", "c")
+	triple := graph.NewTripleFromStrings("a", "b", "c")
 
 	// Comparing with nil
 	if triple.Equal(nil) {
@@ -2737,38 +2740,38 @@ func TestTriple_Equal_NilCases(t *testing.T) {
 }
 
 func TestPattern_Matches_EdgeCases(t *testing.T) {
-	triple := NewTripleFromStrings("alice", "knows", "bob")
+	triple := graph.NewTripleFromStrings("alice", "knows", "bob")
 
 	// Pattern with no concrete values matches everything
-	p := &Pattern{}
+	p := &graph.Pattern{}
 	if !p.Matches(triple) {
 		t.Error("empty pattern should match any triple")
 	}
 
 	// Pattern with subject only
-	p = &Pattern{Subject: []byte("alice")}
+	p = &graph.Pattern{Subject: []byte("alice")}
 	if !p.Matches(triple) {
 		t.Error("pattern with matching subject should match")
 	}
 
-	p = &Pattern{Subject: []byte("charlie")}
+	p = &graph.Pattern{Subject: []byte("charlie")}
 	if p.Matches(triple) {
 		t.Error("pattern with non-matching subject should not match")
 	}
 
 	// Pattern with predicate only
-	p = &Pattern{Predicate: []byte("knows")}
+	p = &graph.Pattern{Predicate: []byte("knows")}
 	if !p.Matches(triple) {
 		t.Error("pattern with matching predicate should match")
 	}
 
 	// Pattern with object only
-	p = &Pattern{Object: []byte("bob")}
+	p = &graph.Pattern{Object: []byte("bob")}
 	if !p.Matches(triple) {
 		t.Error("pattern with matching object should match")
 	}
 
-	p = &Pattern{Object: []byte("charlie")}
+	p = &graph.Pattern{Object: []byte("charlie")}
 	if p.Matches(triple) {
 		t.Error("pattern with non-matching object should not match")
 	}
@@ -2778,7 +2781,7 @@ func TestNavigator_Go_EdgeCases(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	db.Put(context.Background(), NewTripleFromStrings("alice", "knows", "bob"))
+	db.Put(context.Background(), graph.NewTripleFromStrings("alice", "knows", "bob"))
 
 	// Go with nil creates a new variable
 	nav := db.Nav(context.Background(), nil).Go(nil)
@@ -2802,7 +2805,7 @@ func TestNavigator_Go_EdgeCases(t *testing.T) {
 	}
 
 	// Go with *Variable
-	v := V("myvar")
+	v := graph.V("myvar")
 	nav = db.Nav(context.Background(), nil).Go(v)
 	if nav.lastElement != v {
 		t.Error("Go(*Variable) should set lastElement to that Variable")
@@ -2819,13 +2822,13 @@ func TestNavigator_normalizeValue_EdgeCases(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	db.Put(context.Background(), NewTripleFromStrings("alice", "knows", "bob"))
+	db.Put(context.Background(), graph.NewTripleFromStrings("alice", "knows", "bob"))
 
 	// Test ArchOut with empty []byte predicate - treated as nil/wildcard
 	nav := db.Nav(context.Background(), []byte("alice")).ArchOut([]byte{})
 	solutions, err := nav.Solutions()
 	if err != nil {
-		t.Fatalf("Solutions failed: %v", err)
+		t.Fatalf("graph.Solutions failed: %v", err)
 	}
 	// Empty predicate is normalized to nil, which means "any predicate"
 	if len(solutions) != 1 {
@@ -2836,7 +2839,7 @@ func TestNavigator_normalizeValue_EdgeCases(t *testing.T) {
 	nav = db.Nav(context.Background(), []byte("alice")).ArchOut("")
 	solutions, err = nav.Solutions()
 	if err != nil {
-		t.Fatalf("Solutions failed: %v", err)
+		t.Fatalf("graph.Solutions failed: %v", err)
 	}
 	if len(solutions) != 1 {
 		t.Errorf("expected 1 solution with empty string predicate, got %d", len(solutions))

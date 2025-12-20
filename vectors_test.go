@@ -12,10 +12,10 @@
 // The above copyright notice and this permission notice shall be
 // included in all copies or substantial portions of the Software.
 //
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// THE SOFTWARE IS PROgraph.VIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
 // EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
 // OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+// NONINFRINGEMENT. IN NO Egraph.VENT SHALL THE AUTHORS OR COPYRIGHT
 // HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 // WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
@@ -31,6 +31,8 @@ import (
 	"testing"
 
 	"github.com/benbenbenbenbenben/levelgraph/vector"
+
+	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
 )
 
 func setupTestDBWithVectors(t *testing.T, dims int) (*DB, func()) {
@@ -249,7 +251,7 @@ func TestDB_ConvenienceVectorMethods(t *testing.T) {
 	}
 
 	// Test SetTripleVector
-	triple := NewTripleFromStrings("alice", "likes", "tennis")
+	triple := graph.NewTripleFromStrings("alice", "likes", "tennis")
 	err = db.SetTripleVector(ctx, triple, []float32{0, 0, 1})
 	if err != nil {
 		t.Fatalf("SetTripleVector() error = %v", err)
@@ -470,9 +472,9 @@ func TestDB_VectorAndTriplesTogether(t *testing.T) {
 	ctx := context.Background()
 
 	// Add triples about sports
-	db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
-	db.Put(ctx, NewTripleFromStrings("bob", "likes", "badminton"))
-	db.Put(ctx, NewTripleFromStrings("charlie", "likes", "football"))
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "badminton"))
+	db.Put(ctx, graph.NewTripleFromStrings("charlie", "likes", "football"))
 
 	// Add vectors for the sports (objects)
 	db.SetObjectVector(ctx, []byte("tennis"), []float32{1, 0, 0})
@@ -500,7 +502,7 @@ func TestDB_VectorAndTriplesTogether(t *testing.T) {
 	// Now use graph query to find who likes these sports
 	for _, r := range results {
 		sport := r.Parts[0]
-		triples, err := db.Get(ctx, &Pattern{
+		triples, err := db.Get(ctx, &graph.Pattern{
 			Predicate: []byte("likes"),
 			Object:    sport,
 		})
@@ -642,11 +644,11 @@ func TestDB_HybridSearch(t *testing.T) {
 	ctx := context.Background()
 
 	// Set up a graph of people and the sports they like
-	db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
-	db.Put(ctx, NewTripleFromStrings("alice", "likes", "badminton"))
-	db.Put(ctx, NewTripleFromStrings("bob", "likes", "football"))
-	db.Put(ctx, NewTripleFromStrings("bob", "likes", "tennis"))
-	db.Put(ctx, NewTripleFromStrings("charlie", "likes", "swimming"))
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "badminton"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "football"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("charlie", "likes", "swimming"))
 
 	// Set up vectors for sports
 	// "Racket sports" direction: [1, 0, 0]
@@ -659,8 +661,8 @@ func TestDB_HybridSearch(t *testing.T) {
 
 	// Hybrid search: "Find people who like racket sports"
 	// This combines graph traversal with vector similarity
-	solutions, err := db.Search(ctx, []*Pattern{
-		{Subject: V("person"), Predicate: []byte("likes"), Object: V("sport")},
+	solutions, err := db.Search(ctx, []*graph.Pattern{
+		{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("sport")},
 	}, &SearchOptions{
 		VectorFilter: &VectorFilter{
 			Variable: "sport",
@@ -712,16 +714,16 @@ func TestDB_HybridSearchWithMinScore(t *testing.T) {
 	ctx := context.Background()
 
 	// Set up graph
-	db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
-	db.Put(ctx, NewTripleFromStrings("bob", "likes", "swimming"))
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "swimming"))
 
 	// Set up vectors - tennis similar to query, swimming very different
 	db.SetObjectVector(ctx, []byte("tennis"), []float32{1, 0, 0})
 	db.SetObjectVector(ctx, []byte("swimming"), []float32{-1, 0, 0}) // Opposite direction
 
 	// Search with minimum score threshold
-	solutions, err := db.Search(ctx, []*Pattern{
-		{Subject: V("person"), Predicate: []byte("likes"), Object: V("sport")},
+	solutions, err := db.Search(ctx, []*graph.Pattern{
+		{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("sport")},
 	}, &SearchOptions{
 		VectorFilter: &VectorFilter{
 			Variable: "sport",
@@ -762,16 +764,16 @@ func TestDB_HybridSearchWithTextQuery(t *testing.T) {
 	ctx := context.Background()
 
 	// Set up graph
-	db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
-	db.Put(ctx, NewTripleFromStrings("bob", "likes", "football"))
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "football"))
 
 	// Embed objects
 	db.EmbedAndSetVector(ctx, vector.MakeID(vector.IDTypeObject, []byte("tennis")), "tennis racket sport")
 	db.EmbedAndSetVector(ctx, vector.MakeID(vector.IDTypeObject, []byte("football")), "football soccer ball")
 
 	// Search using text query (will be embedded)
-	solutions, err := db.Search(ctx, []*Pattern{
-		{Subject: V("person"), Predicate: []byte("likes"), Object: V("sport")},
+	solutions, err := db.Search(ctx, []*graph.Pattern{
+		{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("sport")},
 	}, &SearchOptions{
 		VectorFilter: &VectorFilter{
 			Variable:  "sport",
@@ -805,18 +807,18 @@ func TestDB_HybridSearchMultiplePatterns(t *testing.T) {
 	ctx := context.Background()
 
 	// More complex graph: people -> sports -> categories
-	db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
-	db.Put(ctx, NewTripleFromStrings("bob", "likes", "badminton"))
-	db.Put(ctx, NewTripleFromStrings("tennis", "category", "racket_sport"))
-	db.Put(ctx, NewTripleFromStrings("badminton", "category", "racket_sport"))
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "badminton"))
+	db.Put(ctx, graph.NewTripleFromStrings("tennis", "category", "racket_sport"))
+	db.Put(ctx, graph.NewTripleFromStrings("badminton", "category", "racket_sport"))
 
 	// Set vectors for categories
 	db.SetObjectVector(ctx, []byte("racket_sport"), []float32{1, 0, 0})
 
 	// Two-pattern search: find people -> sport -> category, filter by category similarity
-	solutions, err := db.Search(ctx, []*Pattern{
-		{Subject: V("person"), Predicate: []byte("likes"), Object: V("sport")},
-		{Subject: V("sport"), Predicate: []byte("category"), Object: V("cat")},
+	solutions, err := db.Search(ctx, []*graph.Pattern{
+		{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("sport")},
+		{Subject: graph.V("sport"), Predicate: []byte("category"), Object: graph.V("cat")},
 	}, &SearchOptions{
 		VectorFilter: &VectorFilter{
 			Variable: "cat",
@@ -868,7 +870,7 @@ func TestDB_AutoEmbedOnPut(t *testing.T) {
 	}
 
 	// Put a triple - should auto-embed the object
-	err = db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
+	err = db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
 	if err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
@@ -889,7 +891,7 @@ func TestDB_AutoEmbedOnPut(t *testing.T) {
 	}
 
 	// Put another triple with the same object - should not create duplicate
-	err = db.Put(ctx, NewTripleFromStrings("bob", "likes", "tennis"))
+	err = db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "tennis"))
 	if err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
@@ -900,7 +902,7 @@ func TestDB_AutoEmbedOnPut(t *testing.T) {
 	}
 
 	// Put triple with new object
-	err = db.Put(ctx, NewTripleFromStrings("charlie", "likes", "badminton"))
+	err = db.Put(ctx, graph.NewTripleFromStrings("charlie", "likes", "badminton"))
 	if err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
@@ -930,7 +932,7 @@ func TestDB_AutoEmbedSubjects(t *testing.T) {
 	ctx := context.Background()
 
 	// Put a triple - should auto-embed the subject
-	err = db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
+	err = db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
 	if err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
@@ -974,7 +976,7 @@ func TestDB_AutoEmbedAll(t *testing.T) {
 	ctx := context.Background()
 
 	// Put a triple - should auto-embed subject, predicate, and object
-	err = db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
+	err = db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
 	if err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
@@ -1023,9 +1025,9 @@ func TestDB_AutoEmbedBatchPut(t *testing.T) {
 
 	// Batch put multiple triples
 	err = db.Put(ctx,
-		NewTripleFromStrings("alice", "likes", "tennis"),
-		NewTripleFromStrings("bob", "likes", "badminton"),
-		NewTripleFromStrings("charlie", "likes", "tennis"), // Duplicate object
+		graph.NewTripleFromStrings("alice", "likes", "tennis"),
+		graph.NewTripleFromStrings("bob", "likes", "badminton"),
+		graph.NewTripleFromStrings("charlie", "likes", "tennis"), // Duplicate object
 	)
 	if err != nil {
 		t.Fatalf("Put() error = %v", err)
@@ -1056,7 +1058,7 @@ func TestDB_AutoEmbedDisabled(t *testing.T) {
 	ctx := context.Background()
 
 	// Put a triple - should NOT auto-embed
-	err = db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
+	err = db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
 	if err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
@@ -1085,9 +1087,9 @@ func TestDB_AutoEmbedIntegrationWithSearch(t *testing.T) {
 	ctx := context.Background()
 
 	// Add triples - objects are auto-embedded
-	db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
-	db.Put(ctx, NewTripleFromStrings("bob", "likes", "badminton"))
-	db.Put(ctx, NewTripleFromStrings("charlie", "likes", "swimming"))
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "badminton"))
+	db.Put(ctx, graph.NewTripleFromStrings("charlie", "likes", "swimming"))
 
 	// Search for objects similar to "tennis"
 	tennisVec, _ := embedder.Embed("tennis")
@@ -1153,7 +1155,7 @@ func TestDB_DimensionMatch(t *testing.T) {
 
 	// Verify it works
 	ctx := context.Background()
-	err = db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
+	err = db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
 	if err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
@@ -1196,18 +1198,18 @@ func TestDB_HybridSearchDuplicateVariableValues(t *testing.T) {
 	ctx := context.Background()
 
 	// Multiple people like the same sport (duplicate variable values)
-	db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
-	db.Put(ctx, NewTripleFromStrings("bob", "likes", "tennis"))     // Same object as alice
-	db.Put(ctx, NewTripleFromStrings("charlie", "likes", "tennis")) // Same object again
-	db.Put(ctx, NewTripleFromStrings("dave", "likes", "football"))
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "tennis"))     // Same object as alice
+	db.Put(ctx, graph.NewTripleFromStrings("charlie", "likes", "tennis")) // Same object again
+	db.Put(ctx, graph.NewTripleFromStrings("dave", "likes", "football"))
 
 	// Set up vectors
 	db.SetObjectVector(ctx, []byte("tennis"), []float32{1, 0, 0})   // High similarity to query
 	db.SetObjectVector(ctx, []byte("football"), []float32{0, 1, 0}) // Lower similarity
 
 	// Hybrid search for racket sports
-	solutions, err := db.Search(ctx, []*Pattern{
-		{Subject: V("person"), Predicate: []byte("likes"), Object: V("sport")},
+	solutions, err := db.Search(ctx, []*graph.Pattern{
+		{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("sport")},
 	}, &SearchOptions{
 		VectorFilter: &VectorFilter{
 			Variable: "sport",
@@ -1363,12 +1365,12 @@ func TestDB_VectorFilterNonExistentVariable(t *testing.T) {
 	ctx := context.Background()
 
 	// Set up graph and vectors
-	db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
 	db.SetObjectVector(ctx, []byte("tennis"), []float32{1, 0, 0})
 
 	// Search with VectorFilter for a variable that doesn't exist in the pattern
-	solutions, err := db.Search(ctx, []*Pattern{
-		{Subject: V("person"), Predicate: []byte("likes"), Object: V("sport")},
+	solutions, err := db.Search(ctx, []*graph.Pattern{
+		{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("sport")},
 	}, &SearchOptions{
 		VectorFilter: &VectorFilter{
 			Variable: "nonexistent_var", // This variable doesn't exist
@@ -1405,12 +1407,12 @@ func TestDB_VectorFilterQueryTextNoEmbedder(t *testing.T) {
 	ctx := context.Background()
 
 	// Set up graph
-	db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
 	db.SetObjectVector(ctx, []byte("tennis"), []float32{1, 0, 0})
 
 	// Try to search with QueryText (requires embedder)
-	_, err = db.Search(ctx, []*Pattern{
-		{Subject: V("person"), Predicate: []byte("likes"), Object: V("sport")},
+	_, err = db.Search(ctx, []*graph.Pattern{
+		{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("sport")},
 	}, &SearchOptions{
 		VectorFilter: &VectorFilter{
 			Variable:  "sport",
@@ -1424,7 +1426,7 @@ func TestDB_VectorFilterQueryTextNoEmbedder(t *testing.T) {
 	}
 }
 
-// TestDB_VeryLargeVectors tests handling of high-dimensional vectors (like OpenAI's 1536).
+// TestDB_graph.VeryLargeVectors tests handling of high-dimensional vectors (like OpenAI's 1536).
 func TestDB_VeryLargeVectors(t *testing.T) {
 	t.Parallel()
 
@@ -1512,8 +1514,8 @@ func TestDB_LoadVectorsAfterAutoEmbed(t *testing.T) {
 		ctx := context.Background()
 
 		// Put triples - objects will be auto-embedded
-		db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
-		db.Put(ctx, NewTripleFromStrings("bob", "likes", "badminton"))
+		db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
+		db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "badminton"))
 
 		// Verify vectors were created
 		if db.VectorCount() != 2 {
@@ -1581,9 +1583,9 @@ func TestDB_AutoEmbedWithHNSW(t *testing.T) {
 	ctx := context.Background()
 
 	// Put triples - objects will be auto-embedded
-	db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
-	db.Put(ctx, NewTripleFromStrings("bob", "likes", "badminton"))
-	db.Put(ctx, NewTripleFromStrings("charlie", "likes", "swimming"))
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "badminton"))
+	db.Put(ctx, graph.NewTripleFromStrings("charlie", "likes", "swimming"))
 
 	// Verify vectors were created
 	if db.VectorCount() != 3 {
@@ -1746,7 +1748,7 @@ func TestDB_AsyncAutoEmbed(t *testing.T) {
 	ctx := context.Background()
 
 	// Put a triple - embedding should be queued, not blocking
-	err = db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
+	err = db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
 	if err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
@@ -1832,10 +1834,10 @@ func TestDB_AsyncAutoEmbedBatchPut(t *testing.T) {
 
 	// Batch put multiple triples (some with duplicate objects)
 	err = db.Put(ctx,
-		NewTripleFromStrings("alice", "likes", "tennis"),
-		NewTripleFromStrings("bob", "likes", "badminton"),
-		NewTripleFromStrings("charlie", "likes", "tennis"), // Duplicate object
-		NewTripleFromStrings("dave", "likes", "swimming"),
+		graph.NewTripleFromStrings("alice", "likes", "tennis"),
+		graph.NewTripleFromStrings("bob", "likes", "badminton"),
+		graph.NewTripleFromStrings("charlie", "likes", "tennis"), // Duplicate object
+		graph.NewTripleFromStrings("dave", "likes", "swimming"),
 	)
 	if err != nil {
 		t.Fatalf("Put() error = %v", err)
@@ -1928,7 +1930,7 @@ func TestDB_AsyncAutoEmbedPendingCount(t *testing.T) {
 	}
 
 	// Put a triple
-	err = db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
+	err = db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
 	if err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
@@ -1965,7 +1967,7 @@ func TestDB_AsyncAutoEmbedDisabled(t *testing.T) {
 	ctx := context.Background()
 
 	// Put a triple - embedding should happen synchronously
-	err = db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
+	err = db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
 	if err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
@@ -2006,7 +2008,7 @@ func TestDB_AsyncAutoEmbedWithContextCancel(t *testing.T) {
 	ctx := context.Background()
 
 	// Put triples
-	err = db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
+	err = db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
 	if err != nil {
 		t.Fatalf("Put() error = %v", err)
 	}
@@ -2046,9 +2048,9 @@ func TestDB_AsyncAutoEmbedIntegrationWithSearch(t *testing.T) {
 	ctx := context.Background()
 
 	// Add triples - objects are auto-embedded asynchronously
-	db.Put(ctx, NewTripleFromStrings("alice", "likes", "tennis"))
-	db.Put(ctx, NewTripleFromStrings("bob", "likes", "badminton"))
-	db.Put(ctx, NewTripleFromStrings("charlie", "likes", "swimming"))
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "badminton"))
+	db.Put(ctx, graph.NewTripleFromStrings("charlie", "likes", "swimming"))
 
 	// Wait for embeddings before searching
 	err = db.WaitForEmbeddings(ctx)

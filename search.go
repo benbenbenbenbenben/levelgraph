@@ -28,6 +28,7 @@ import (
 	"context"
 	"sort"
 
+	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
 	"github.com/benbenbenbenbenben/levelgraph/vector"
 )
 
@@ -157,7 +158,7 @@ func (db *DB) Search(ctx context.Context, patterns []*Pattern, opts *SearchOptio
 		default:
 		}
 
-		var newSolutions []Solution
+		var newSolutions []graph.Solution
 
 		for _, solution := range solutions {
 			// Update the pattern with bound variables from the current solution
@@ -189,7 +190,7 @@ func (db *DB) Search(ctx context.Context, patterns []*Pattern, opts *SearchOptio
 
 	// Apply solution-level filter
 	if opts.Filter != nil {
-		var filtered []Solution
+		var filtered []graph.Solution
 		for _, s := range solutions {
 			if opts.Filter(s) {
 				filtered = append(filtered, s)
@@ -210,7 +211,7 @@ func (db *DB) Search(ctx context.Context, patterns []*Pattern, opts *SearchOptio
 	// Apply offset
 	if opts.Offset > 0 {
 		if opts.Offset >= len(solutions) {
-			solutions = []Solution{}
+			solutions = []graph.Solution{}
 		} else {
 			solutions = solutions[opts.Offset:]
 		}
@@ -234,12 +235,12 @@ func (db *DB) Search(ctx context.Context, patterns []*Pattern, opts *SearchOptio
 }
 
 // materializeSolutions transforms solutions into triples based on a pattern.
-func (db *DB) materializeSolutions(solutions []Solution, pattern *Pattern) ([]Solution, error) {
-	var result []Solution
+func (db *DB) materializeSolutions(solutions []graph.Solution, pattern *graph.Pattern) ([]graph.Solution, error) {
+	var result []graph.Solution
 
 	for _, solution := range solutions {
 		// Create a new solution that represents a materialized triple
-		tripleData := make(Solution)
+		tripleData := make(graph.Solution)
 
 		// Subject
 		if v := pattern.GetVariable("subject"); v != nil {
@@ -275,16 +276,16 @@ func (db *DB) materializeSolutions(solutions []Solution, pattern *Pattern) ([]So
 }
 
 // SearchIterator returns an iterator for search results.
-func (db *DB) SearchIterator(ctx context.Context, patterns []*Pattern, opts *SearchOptions) (*SolutionIterator, error) {
+func (db *DB) SearchIterator(ctx context.Context, patterns []*graph.Pattern, opts *SearchOptions) (*SolutionIterator, error) {
 	if opts == nil {
 		opts = &SearchOptions{}
 	}
 
-	var startSolution Solution
+	var startSolution graph.Solution
 	if opts.InitialSolution != nil {
 		startSolution = opts.InitialSolution.Clone()
 	} else {
-		startSolution = make(Solution)
+		startSolution = make(graph.Solution)
 	}
 
 	si := &SolutionIterator{
@@ -293,7 +294,7 @@ func (db *DB) SearchIterator(ctx context.Context, patterns []*Pattern, opts *Sea
 		patterns:  patterns,
 		opts:      opts,
 		iters:     make([]*TripleIterator, len(patterns)),
-		solutions: make([]Solution, len(patterns)+1),
+		solutions: make([]graph.Solution, len(patterns)+1),
 	}
 	si.solutions[0] = startSolution
 
@@ -304,11 +305,11 @@ func (db *DB) SearchIterator(ctx context.Context, patterns []*Pattern, opts *Sea
 type SolutionIterator struct {
 	ctx       context.Context
 	db        *DB
-	patterns  []*Pattern
+	patterns  []*graph.Pattern
 	opts      *SearchOptions
 	iters     []*TripleIterator
-	solutions []Solution // solutions[i] is the solution before pattern[i]
-	current   Solution
+	solutions []graph.Solution // solutions[i] is the solution before pattern[i]
+	current   graph.Solution
 	err       error
 	count     int
 	skipped   int
@@ -363,7 +364,7 @@ func (si *SolutionIterator) Next() bool {
 	}
 }
 
-func (si *SolutionIterator) advance() Solution {
+func (si *SolutionIterator) advance() graph.Solution {
 	level := -1
 	// Find the deepest active level
 	for i := len(si.patterns) - 1; i >= 0; i-- {
@@ -438,8 +439,8 @@ func (si *SolutionIterator) advance() Solution {
 	return nil
 }
 
-func (si *SolutionIterator) materialize(solution Solution, pattern *Pattern) Solution {
-	tripleData := make(Solution)
+func (si *SolutionIterator) materialize(solution graph.Solution, pattern *graph.Pattern) graph.Solution {
+	tripleData := make(graph.Solution)
 	fields := []string{"subject", "predicate", "object"}
 	for _, field := range fields {
 		if v := pattern.GetVariable(field); v != nil {
@@ -454,7 +455,7 @@ func (si *SolutionIterator) materialize(solution Solution, pattern *Pattern) Sol
 }
 
 // Solution returns the current solution.
-func (si *SolutionIterator) Solution() Solution {
+func (si *SolutionIterator) Solution() graph.Solution {
 	return si.current
 }
 
@@ -479,7 +480,7 @@ func (si *SolutionIterator) Error() error {
 
 // GetVectorScore extracts the vector similarity score from a solution.
 // Returns 0 if no score was set (e.g., if VectorFilter wasn't used).
-func GetVectorScore(sol Solution) float32 {
+func GetVectorScore(sol graph.Solution) float32 {
 	scoreBytes, ok := sol["__vector_score__"]
 	if !ok {
 		return 0
@@ -493,12 +494,12 @@ func GetVectorScore(sol Solution) float32 {
 
 // scoredSolution pairs a solution with its vector similarity score.
 type scoredSolution struct {
-	solution Solution
+	solution graph.Solution
 	score    float32
 }
 
 // applyVectorFilter filters and ranks solutions based on vector similarity.
-func (db *DB) applyVectorFilter(ctx context.Context, solutions []Solution, vf *VectorFilter) ([]Solution, error) {
+func (db *DB) applyVectorFilter(ctx context.Context, solutions []graph.Solution, vf *VectorFilter) ([]graph.Solution, error) {
 	if len(solutions) == 0 {
 		return solutions, nil
 	}
@@ -597,7 +598,7 @@ func (db *DB) applyVectorFilter(ctx context.Context, solutions []Solution, vf *V
 	}
 
 	// Extract solutions, adding score to each
-	result := make([]Solution, len(scored))
+	result := make([]graph.Solution, len(scored))
 	for i, s := range scored {
 		// Clone solution and add score
 		result[i] = s.solution.Clone()

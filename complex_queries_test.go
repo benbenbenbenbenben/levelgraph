@@ -26,6 +26,8 @@ package levelgraph
 import (
 	"context"
 	"testing"
+
+	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
 )
 
 // setupSocialGraph creates a social network graph for testing complex queries
@@ -33,46 +35,46 @@ func setupSocialGraph(t *testing.T) (*DB, func()) {
 	t.Helper()
 	db, cleanup := setupTestDB(t)
 
-	triples := []*Triple{
+	triples := []*graph.Triple{
 		// People and their types
-		NewTripleFromStrings("alice", "type", "Person"),
-		NewTripleFromStrings("bob", "type", "Person"),
-		NewTripleFromStrings("charlie", "type", "Person"),
-		NewTripleFromStrings("diana", "type", "Person"),
-		NewTripleFromStrings("eve", "type", "Person"),
+		graph.NewTripleFromStrings("alice", "type", "Person"),
+		graph.NewTripleFromStrings("bob", "type", "Person"),
+		graph.NewTripleFromStrings("charlie", "type", "Person"),
+		graph.NewTripleFromStrings("diana", "type", "Person"),
+		graph.NewTripleFromStrings("eve", "type", "Person"),
 
 		// Friendships (directed - alice knows bob doesn't mean bob knows alice)
-		NewTripleFromStrings("alice", "knows", "bob"),
-		NewTripleFromStrings("alice", "knows", "charlie"),
-		NewTripleFromStrings("bob", "knows", "charlie"),
-		NewTripleFromStrings("bob", "knows", "diana"),
-		NewTripleFromStrings("charlie", "knows", "diana"),
-		NewTripleFromStrings("diana", "knows", "eve"),
+		graph.NewTripleFromStrings("alice", "knows", "bob"),
+		graph.NewTripleFromStrings("alice", "knows", "charlie"),
+		graph.NewTripleFromStrings("bob", "knows", "charlie"),
+		graph.NewTripleFromStrings("bob", "knows", "diana"),
+		graph.NewTripleFromStrings("charlie", "knows", "diana"),
+		graph.NewTripleFromStrings("diana", "knows", "eve"),
 
 		// Interests
-		NewTripleFromStrings("alice", "likes", "hiking"),
-		NewTripleFromStrings("alice", "likes", "photography"),
-		NewTripleFromStrings("bob", "likes", "hiking"),
-		NewTripleFromStrings("bob", "likes", "coding"),
-		NewTripleFromStrings("charlie", "likes", "music"),
-		NewTripleFromStrings("charlie", "likes", "photography"),
-		NewTripleFromStrings("diana", "likes", "hiking"),
-		NewTripleFromStrings("diana", "likes", "music"),
-		NewTripleFromStrings("eve", "likes", "coding"),
+		graph.NewTripleFromStrings("alice", "likes", "hiking"),
+		graph.NewTripleFromStrings("alice", "likes", "photography"),
+		graph.NewTripleFromStrings("bob", "likes", "hiking"),
+		graph.NewTripleFromStrings("bob", "likes", "coding"),
+		graph.NewTripleFromStrings("charlie", "likes", "music"),
+		graph.NewTripleFromStrings("charlie", "likes", "photography"),
+		graph.NewTripleFromStrings("diana", "likes", "hiking"),
+		graph.NewTripleFromStrings("diana", "likes", "music"),
+		graph.NewTripleFromStrings("eve", "likes", "coding"),
 
 		// Ages
-		NewTripleFromStrings("alice", "age", "30"),
-		NewTripleFromStrings("bob", "age", "25"),
-		NewTripleFromStrings("charlie", "age", "35"),
-		NewTripleFromStrings("diana", "age", "28"),
-		NewTripleFromStrings("eve", "age", "22"),
+		graph.NewTripleFromStrings("alice", "age", "30"),
+		graph.NewTripleFromStrings("bob", "age", "25"),
+		graph.NewTripleFromStrings("charlie", "age", "35"),
+		graph.NewTripleFromStrings("diana", "age", "28"),
+		graph.NewTripleFromStrings("eve", "age", "22"),
 
 		// Locations
-		NewTripleFromStrings("alice", "livesIn", "NYC"),
-		NewTripleFromStrings("bob", "livesIn", "NYC"),
-		NewTripleFromStrings("charlie", "livesIn", "LA"),
-		NewTripleFromStrings("diana", "livesIn", "LA"),
-		NewTripleFromStrings("eve", "livesIn", "NYC"),
+		graph.NewTripleFromStrings("alice", "livesIn", "NYC"),
+		graph.NewTripleFromStrings("bob", "livesIn", "NYC"),
+		graph.NewTripleFromStrings("charlie", "livesIn", "LA"),
+		graph.NewTripleFromStrings("diana", "livesIn", "LA"),
+		graph.NewTripleFromStrings("eve", "livesIn", "NYC"),
 	}
 
 	if err := db.Put(context.Background(), triples...); err != nil {
@@ -91,11 +93,11 @@ func TestComplexQuery_SharedInterests(t *testing.T) {
 
 	t.Run("find all pairs sharing an interest", func(t *testing.T) {
 		// Find all pairs of people who share at least one interest
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: V("person1"), Predicate: []byte("likes"), Object: V("interest")},
-			{Subject: V("person2"), Predicate: []byte("likes"), Object: V("interest")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: graph.V("person1"), Predicate: []byte("likes"), Object: graph.V("interest")},
+			{Subject: graph.V("person2"), Predicate: []byte("likes"), Object: graph.V("interest")},
 		}, &SearchOptions{
-			Filter: func(s Solution) bool {
+			Filter: func(s graph.Solution) bool {
 				// Exclude self-pairs
 				return string(s["person1"]) != string(s["person2"])
 			},
@@ -112,7 +114,7 @@ func TestComplexQuery_SharedInterests(t *testing.T) {
 			t.Errorf("expected at least 6 shared interest pairs, got %d", len(results))
 		}
 
-		// Verify structure
+		// graph.Verify structure
 		for _, sol := range results {
 			if sol["person1"] == nil || sol["person2"] == nil || sol["interest"] == nil {
 				t.Error("solution should have person1, person2, and interest")
@@ -121,11 +123,11 @@ func TestComplexQuery_SharedInterests(t *testing.T) {
 	})
 
 	t.Run("find people who share alice's interests", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("likes"), Object: V("interest")},
-			{Subject: V("other"), Predicate: []byte("likes"), Object: V("interest")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: []byte("alice"), Predicate: []byte("likes"), Object: graph.V("interest")},
+			{Subject: graph.V("other"), Predicate: []byte("likes"), Object: graph.V("interest")},
 		}, &SearchOptions{
-			Filter: func(s Solution) bool {
+			Filter: func(s graph.Solution) bool {
 				return string(s["other"]) != "alice"
 			},
 		})
@@ -157,8 +159,8 @@ func TestComplexQuery_FriendsOfFriends(t *testing.T) {
 	defer cleanup()
 
 	t.Run("direct friends of alice", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: V("friend")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: graph.V("friend")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -178,9 +180,9 @@ func TestComplexQuery_FriendsOfFriends(t *testing.T) {
 	})
 
 	t.Run("friends of friends of alice", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: V("friend")},
-			{Subject: V("friend"), Predicate: []byte("knows"), Object: V("fof")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: graph.V("friend")},
+			{Subject: graph.V("friend"), Predicate: []byte("knows"), Object: graph.V("fof")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -200,8 +202,8 @@ func TestComplexQuery_FriendsOfFriends(t *testing.T) {
 
 	t.Run("friends of friends excluding direct friends", func(t *testing.T) {
 		// First get direct friends
-		directResults, _ := db.Search(context.Background(), []*Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: V("friend")},
+		directResults, _ := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: graph.V("friend")},
 		}, nil)
 		directFriends := make(map[string]bool)
 		for _, sol := range directResults {
@@ -209,11 +211,11 @@ func TestComplexQuery_FriendsOfFriends(t *testing.T) {
 		}
 
 		// Get friends of friends
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: V("friend")},
-			{Subject: V("friend"), Predicate: []byte("knows"), Object: V("fof")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: graph.V("friend")},
+			{Subject: graph.V("friend"), Predicate: []byte("knows"), Object: graph.V("fof")},
 		}, &SearchOptions{
-			Filter: func(s Solution) bool {
+			Filter: func(s graph.Solution) bool {
 				fof := string(s["fof"])
 				// Exclude alice and direct friends
 				return fof != "alice" && !directFriends[fof]
@@ -238,10 +240,10 @@ func TestComplexQuery_FriendsOfFriends(t *testing.T) {
 	})
 
 	t.Run("three degrees of separation", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: V("f1")},
-			{Subject: V("f1"), Predicate: []byte("knows"), Object: V("f2")},
-			{Subject: V("f2"), Predicate: []byte("knows"), Object: V("f3")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: graph.V("f1")},
+			{Subject: graph.V("f1"), Predicate: []byte("knows"), Object: graph.V("f2")},
+			{Subject: graph.V("f2"), Predicate: []byte("knows"), Object: graph.V("f3")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -268,21 +270,21 @@ func TestComplexQuery_TriangleFinding(t *testing.T) {
 	defer cleanup()
 
 	// Create a graph with known triangles
-	triples := []*Triple{
+	triples := []*graph.Triple{
 		// Triangle: a-b-c-a
-		NewTripleFromStrings("a", "connected", "b"),
-		NewTripleFromStrings("b", "connected", "c"),
-		NewTripleFromStrings("c", "connected", "a"),
+		graph.NewTripleFromStrings("a", "connected", "b"),
+		graph.NewTripleFromStrings("b", "connected", "c"),
+		graph.NewTripleFromStrings("c", "connected", "a"),
 		// Additional edges
-		NewTripleFromStrings("a", "connected", "d"),
-		NewTripleFromStrings("d", "connected", "e"),
+		graph.NewTripleFromStrings("a", "connected", "d"),
+		graph.NewTripleFromStrings("d", "connected", "e"),
 	}
 	db.Put(context.Background(), triples...)
 
-	results, err := db.Search(context.Background(), []*Pattern{
-		{Subject: V("x"), Predicate: []byte("connected"), Object: V("y")},
-		{Subject: V("y"), Predicate: []byte("connected"), Object: V("z")},
-		{Subject: V("z"), Predicate: []byte("connected"), Object: V("x")},
+	results, err := db.Search(context.Background(), []*graph.Pattern{
+		{Subject: graph.V("x"), Predicate: []byte("connected"), Object: graph.V("y")},
+		{Subject: graph.V("y"), Predicate: []byte("connected"), Object: graph.V("z")},
+		{Subject: graph.V("z"), Predicate: []byte("connected"), Object: graph.V("x")},
 	}, nil)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
@@ -294,7 +296,7 @@ func TestComplexQuery_TriangleFinding(t *testing.T) {
 		t.Errorf("expected 3 triangle rotations, got %d", len(results))
 	}
 
-	// Verify all results form valid triangles
+	// graph.Verify all results form valid triangles
 	triangleNodes := map[string]bool{"a": true, "b": true, "c": true}
 	for i, r := range results {
 		x := string(r["x"])
@@ -303,7 +305,7 @@ func TestComplexQuery_TriangleFinding(t *testing.T) {
 		if !triangleNodes[x] || !triangleNodes[y] || !triangleNodes[z] {
 			t.Errorf("result %d: unexpected nodes %s-%s-%s", i, x, y, z)
 		}
-		// Verify they're all different (no duplicates in the same match)
+		// graph.Verify they're all different (no duplicates in the same match)
 		if x == y || y == z || x == z {
 			t.Errorf("result %d: duplicate nodes in triangle %s-%s-%s", i, x, y, z)
 		}
@@ -317,7 +319,7 @@ func TestComplexQuery_PathExistence(t *testing.T) {
 	defer cleanup()
 
 	t.Run("direct path exists", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
+		results, err := db.Search(context.Background(), []*graph.Pattern{
 			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: []byte("bob")},
 		}, nil)
 		if err != nil {
@@ -329,9 +331,9 @@ func TestComplexQuery_PathExistence(t *testing.T) {
 	})
 
 	t.Run("two-hop path exists", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: V("mid")},
-			{Subject: V("mid"), Predicate: []byte("knows"), Object: []byte("diana")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: graph.V("mid")},
+			{Subject: graph.V("mid"), Predicate: []byte("knows"), Object: []byte("diana")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -343,8 +345,8 @@ func TestComplexQuery_PathExistence(t *testing.T) {
 	})
 
 	t.Run("path does not exist", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: []byte("eve"), Predicate: []byte("knows"), Object: V("anyone")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: []byte("eve"), Predicate: []byte("knows"), Object: graph.V("anyone")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -363,10 +365,10 @@ func TestComplexQuery_MultiplePredicates(t *testing.T) {
 	defer cleanup()
 
 	t.Run("friends in same city", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: V("person1"), Predicate: []byte("knows"), Object: V("person2")},
-			{Subject: V("person1"), Predicate: []byte("livesIn"), Object: V("city")},
-			{Subject: V("person2"), Predicate: []byte("livesIn"), Object: V("city")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: graph.V("person1"), Predicate: []byte("knows"), Object: graph.V("person2")},
+			{Subject: graph.V("person1"), Predicate: []byte("livesIn"), Object: graph.V("city")},
+			{Subject: graph.V("person2"), Predicate: []byte("livesIn"), Object: graph.V("city")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -387,10 +389,10 @@ func TestComplexQuery_MultiplePredicates(t *testing.T) {
 	})
 
 	t.Run("people who like what their friends like", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: V("person"), Predicate: []byte("knows"), Object: V("friend")},
-			{Subject: V("person"), Predicate: []byte("likes"), Object: V("interest")},
-			{Subject: V("friend"), Predicate: []byte("likes"), Object: V("interest")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: graph.V("person"), Predicate: []byte("knows"), Object: graph.V("friend")},
+			{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("interest")},
+			{Subject: graph.V("friend"), Predicate: []byte("likes"), Object: graph.V("interest")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -401,7 +403,7 @@ func TestComplexQuery_MultiplePredicates(t *testing.T) {
 			t.Error("should find people who share interests with friends")
 		}
 
-		// Verify: alice knows bob, both like hiking
+		// graph.Verify: alice knows bob, both like hiking
 		found := false
 		for _, sol := range results {
 			if string(sol["person"]) == "alice" && string(sol["friend"]) == "bob" && string(sol["interest"]) == "hiking" {
@@ -421,8 +423,8 @@ func TestComplexQuery_Aggregation(t *testing.T) {
 	defer cleanup()
 
 	t.Run("count friends per person", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: V("person"), Predicate: []byte("knows"), Object: V("friend")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: graph.V("person"), Predicate: []byte("knows"), Object: graph.V("friend")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -435,7 +437,7 @@ func TestComplexQuery_Aggregation(t *testing.T) {
 			friendCount[person]++
 		}
 
-		// Verify counts
+		// graph.Verify counts
 		if friendCount["alice"] != 2 {
 			t.Errorf("alice should have 2 friends, got %d", friendCount["alice"])
 		}
@@ -448,8 +450,8 @@ func TestComplexQuery_Aggregation(t *testing.T) {
 	})
 
 	t.Run("count interests per person", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: V("person"), Predicate: []byte("likes"), Object: V("interest")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("interest")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -481,8 +483,8 @@ func TestComplexQuery_OptionalPatterns(t *testing.T) {
 
 	t.Run("find people with optional age", func(t *testing.T) {
 		// Get all people
-		peopleResults, err := db.Search(context.Background(), []*Pattern{
-			{Subject: V("person"), Predicate: []byte("type"), Object: []byte("Person")},
+		peopleResults, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: graph.V("person"), Predicate: []byte("type"), Object: []byte("Person")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -497,8 +499,8 @@ func TestComplexQuery_OptionalPatterns(t *testing.T) {
 
 		for _, sol := range peopleResults {
 			person := string(sol["person"])
-			ageResults, _ := db.Search(context.Background(), []*Pattern{
-				{Subject: []byte(person), Predicate: []byte("age"), Object: V("age")},
+			ageResults, _ := db.Search(context.Background(), []*graph.Pattern{
+				{Subject: []byte(person), Predicate: []byte("age"), Object: graph.V("age")},
 			}, nil)
 
 			pwa := PersonWithAge{Name: person}
@@ -529,16 +531,16 @@ func TestComplexQuery_Negation(t *testing.T) {
 
 	t.Run("find people who don't like hiking", func(t *testing.T) {
 		// Get all people
-		allPeople, err := db.Search(context.Background(), []*Pattern{
-			{Subject: V("person"), Predicate: []byte("type"), Object: []byte("Person")},
+		allPeople, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: graph.V("person"), Predicate: []byte("type"), Object: []byte("Person")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
 		}
 
 		// Get people who like hiking
-		hikingLovers, err := db.Search(context.Background(), []*Pattern{
-			{Subject: V("person"), Predicate: []byte("likes"), Object: []byte("hiking")},
+		hikingLovers, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: graph.V("person"), Predicate: []byte("likes"), Object: []byte("hiking")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -566,16 +568,16 @@ func TestComplexQuery_Negation(t *testing.T) {
 
 	t.Run("find people with no friends", func(t *testing.T) {
 		// Get all people
-		allPeople, err := db.Search(context.Background(), []*Pattern{
-			{Subject: V("person"), Predicate: []byte("type"), Object: []byte("Person")},
+		allPeople, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: graph.V("person"), Predicate: []byte("type"), Object: []byte("Person")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
 		}
 
 		// Get people who know someone
-		peopleWithFriends, err := db.Search(context.Background(), []*Pattern{
-			{Subject: V("person"), Predicate: []byte("knows"), Object: V("_")},
+		peopleWithFriends, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: graph.V("person"), Predicate: []byte("knows"), Object: graph.V("_")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -610,14 +612,14 @@ func TestComplexQuery_SelfJoin(t *testing.T) {
 	t.Run("find mutual friends (both know each other)", func(t *testing.T) {
 		// Add some mutual friendships
 		db.Put(context.Background(),
-			NewTripleFromStrings("bob", "knows", "alice"), // alice already knows bob
+			graph.NewTripleFromStrings("bob", "knows", "alice"), // alice already knows bob
 		)
 
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: V("a"), Predicate: []byte("knows"), Object: V("b")},
-			{Subject: V("b"), Predicate: []byte("knows"), Object: V("a")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: graph.V("a"), Predicate: []byte("knows"), Object: graph.V("b")},
+			{Subject: graph.V("b"), Predicate: []byte("knows"), Object: graph.V("a")},
 		}, &SearchOptions{
-			Filter: func(s Solution) bool {
+			Filter: func(s graph.Solution) bool {
 				// Avoid duplicates (a,b) and (b,a)
 				return string(s["a"]) < string(s["b"])
 			},
@@ -640,18 +642,18 @@ func TestComplexQuery_PropertyPaths(t *testing.T) {
 	defer cleanup()
 
 	// Create a taxonomy
-	triples := []*Triple{
-		NewTripleFromStrings("dog", "subclassOf", "mammal"),
-		NewTripleFromStrings("cat", "subclassOf", "mammal"),
-		NewTripleFromStrings("mammal", "subclassOf", "animal"),
-		NewTripleFromStrings("animal", "subclassOf", "livingThing"),
-		NewTripleFromStrings("plant", "subclassOf", "livingThing"),
+	triples := []*graph.Triple{
+		graph.NewTripleFromStrings("dog", "subclassOf", "mammal"),
+		graph.NewTripleFromStrings("cat", "subclassOf", "mammal"),
+		graph.NewTripleFromStrings("mammal", "subclassOf", "animal"),
+		graph.NewTripleFromStrings("animal", "subclassOf", "livingThing"),
+		graph.NewTripleFromStrings("plant", "subclassOf", "livingThing"),
 	}
 	db.Put(context.Background(), triples...)
 
 	t.Run("direct subclass", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: V("x"), Predicate: []byte("subclassOf"), Object: []byte("mammal")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: graph.V("x"), Predicate: []byte("subclassOf"), Object: []byte("mammal")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -671,9 +673,9 @@ func TestComplexQuery_PropertyPaths(t *testing.T) {
 	})
 
 	t.Run("two-level subclass", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: V("x"), Predicate: []byte("subclassOf"), Object: V("y")},
-			{Subject: V("y"), Predicate: []byte("subclassOf"), Object: []byte("animal")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: graph.V("x"), Predicate: []byte("subclassOf"), Object: graph.V("y")},
+			{Subject: graph.V("y"), Predicate: []byte("subclassOf"), Object: []byte("animal")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -698,18 +700,18 @@ func TestComplexQuery_DiamondPattern(t *testing.T) {
 	defer cleanup()
 
 	// Create a diamond pattern: a -> b -> d, a -> c -> d
-	triples := []*Triple{
-		NewTripleFromStrings("a", "edge", "b"),
-		NewTripleFromStrings("a", "edge", "c"),
-		NewTripleFromStrings("b", "edge", "d"),
-		NewTripleFromStrings("c", "edge", "d"),
+	triples := []*graph.Triple{
+		graph.NewTripleFromStrings("a", "edge", "b"),
+		graph.NewTripleFromStrings("a", "edge", "c"),
+		graph.NewTripleFromStrings("b", "edge", "d"),
+		graph.NewTripleFromStrings("c", "edge", "d"),
 	}
 	db.Put(context.Background(), triples...)
 
 	// Find paths from a to d through different intermediaries
-	results, err := db.Search(context.Background(), []*Pattern{
-		{Subject: []byte("a"), Predicate: []byte("edge"), Object: V("mid")},
-		{Subject: V("mid"), Predicate: []byte("edge"), Object: []byte("d")},
+	results, err := db.Search(context.Background(), []*graph.Pattern{
+		{Subject: []byte("a"), Predicate: []byte("edge"), Object: graph.V("mid")},
+		{Subject: graph.V("mid"), Predicate: []byte("edge"), Object: []byte("d")},
 	}, nil)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
@@ -736,8 +738,8 @@ func TestComplexQuery_StarPattern(t *testing.T) {
 	defer cleanup()
 
 	t.Run("get all attributes of a person", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: []byte("alice"), Predicate: V("prop"), Object: V("value")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: []byte("alice"), Predicate: graph.V("prop"), Object: graph.V("value")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -771,25 +773,25 @@ func TestComplexQuery_LargeJoin(t *testing.T) {
 	defer cleanup()
 
 	// Create a larger graph
-	var triples []*Triple
+	var triples []*graph.Triple
 	for i := 0; i < 100; i++ {
 		triples = append(triples,
-			NewTripleFromStrings("node", "connected", string(rune('a'+i%26))+string(rune('0'+i/26))),
+			graph.NewTripleFromStrings("node", "connected", string(rune('a'+i%26))+string(rune('0'+i/26))),
 		)
 	}
 	for i := 0; i < 26; i++ {
 		for j := 0; j < 4; j++ {
 			triples = append(triples,
-				NewTripleFromStrings(string(rune('a'+i))+string(rune('0'+j)), "has", "property"),
+				graph.NewTripleFromStrings(string(rune('a'+i))+string(rune('0'+j)), "has", "property"),
 			)
 		}
 	}
 	db.Put(context.Background(), triples...)
 
 	// Query that produces a large intermediate result
-	results, err := db.Search(context.Background(), []*Pattern{
-		{Subject: []byte("node"), Predicate: []byte("connected"), Object: V("x")},
-		{Subject: V("x"), Predicate: []byte("has"), Object: []byte("property")},
+	results, err := db.Search(context.Background(), []*graph.Pattern{
+		{Subject: []byte("node"), Predicate: []byte("connected"), Object: graph.V("x")},
+		{Subject: graph.V("x"), Predicate: []byte("has"), Object: []byte("property")},
 	}, &SearchOptions{Limit: 50})
 
 	if err != nil {
@@ -807,12 +809,12 @@ func TestComplexQuery_FilterChaining(t *testing.T) {
 	defer cleanup()
 
 	t.Run("multiple filter conditions", func(t *testing.T) {
-		results, err := db.Search(context.Background(), []*Pattern{
-			{Subject: V("person"), Predicate: []byte("type"), Object: []byte("Person")},
-			{Subject: V("person"), Predicate: []byte("livesIn"), Object: V("city")},
-			{Subject: V("person"), Predicate: []byte("likes"), Object: V("interest")},
+		results, err := db.Search(context.Background(), []*graph.Pattern{
+			{Subject: graph.V("person"), Predicate: []byte("type"), Object: []byte("Person")},
+			{Subject: graph.V("person"), Predicate: []byte("livesIn"), Object: graph.V("city")},
+			{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("interest")},
 		}, &SearchOptions{
-			Filter: func(s Solution) bool {
+			Filter: func(s graph.Solution) bool {
 				city := string(s["city"])
 				interest := string(s["interest"])
 				// Only NYC people who like hiking

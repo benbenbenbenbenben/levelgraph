@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 
 	"github.com/benbenbenbenbenben/levelgraph"
+	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
 )
 
 // Example demonstrates basic LevelGraph usage: opening a database,
@@ -54,8 +55,8 @@ func Example() {
 
 	// Insert triples
 	err = db.Put(context.Background(),
-		levelgraph.NewTripleFromStrings("alice", "knows", "bob"),
-		levelgraph.NewTripleFromStrings("bob", "knows", "charlie"),
+		graph.NewTripleFromStrings("alice", "knows", "bob"),
+		graph.NewTripleFromStrings("bob", "knows", "charlie"),
 	)
 	if err != nil {
 		fmt.Println("Error:", err)
@@ -63,7 +64,7 @@ func Example() {
 	}
 
 	// Query by subject
-	triples, err := db.Get(context.Background(), &levelgraph.Pattern{Subject: []byte("alice")})
+	triples, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("alice")})
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
@@ -93,17 +94,17 @@ func Example_search() {
 
 	// Build a social graph
 	db.Put(context.Background(),
-		levelgraph.NewTripleFromStrings("alice", "knows", "bob"),
-		levelgraph.NewTripleFromStrings("bob", "knows", "charlie"),
-		levelgraph.NewTripleFromStrings("alice", "knows", "dave"),
+		graph.NewTripleFromStrings("alice", "knows", "bob"),
+		graph.NewTripleFromStrings("bob", "knows", "charlie"),
+		graph.NewTripleFromStrings("alice", "knows", "dave"),
 	)
 
 	// Find everyone alice knows
-	results, err := db.Search(context.Background(), []*levelgraph.Pattern{
+	results, err := db.Search(context.Background(), []*graph.Pattern{
 		{
 			Subject:   []byte("alice"),
 			Predicate: []byte("knows"),
-			Object:    levelgraph.V("friend"),
+			Object:    graph.V("friend"),
 		},
 	}, nil)
 	if err != nil {
@@ -133,8 +134,8 @@ func Example_navigator() {
 
 	// Build a graph
 	db.Put(context.Background(),
-		levelgraph.NewTripleFromStrings("alice", "knows", "bob"),
-		levelgraph.NewTripleFromStrings("bob", "knows", "charlie"),
+		graph.NewTripleFromStrings("alice", "knows", "bob"),
+		graph.NewTripleFromStrings("bob", "knows", "charlie"),
 	)
 
 	// Navigate: find friends of friends of alice

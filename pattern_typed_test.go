@@ -27,11 +27,13 @@ package levelgraph
 import (
 	"bytes"
 	"testing"
+
+	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
 )
 
 func TestPatternValue_Wildcard(t *testing.T) {
 	t.Parallel()
-	pv := Wildcard()
+	pv := graph.Wildcard()
 	if !pv.IsWildcard() {
 		t.Error("expected IsWildcard to be true")
 	}
@@ -49,7 +51,7 @@ func TestPatternValue_Wildcard(t *testing.T) {
 func TestPatternValue_Exact(t *testing.T) {
 	t.Parallel()
 	data := []byte("test")
-	pv := Exact(data)
+	pv := graph.Exact(data)
 	if pv.IsWildcard() {
 		t.Error("expected IsWildcard to be false")
 	}
@@ -69,7 +71,7 @@ func TestPatternValue_Exact(t *testing.T) {
 
 func TestPatternValue_ExactString(t *testing.T) {
 	t.Parallel()
-	pv := ExactString("hello")
+	pv := graph.ExactString("hello")
 	if !bytes.Equal(pv.Data(), []byte("hello")) {
 		t.Errorf("expected Data() = %q, got %q", "hello", pv.Data())
 	}
@@ -77,7 +79,7 @@ func TestPatternValue_ExactString(t *testing.T) {
 
 func TestPatternValue_Binding(t *testing.T) {
 	t.Parallel()
-	pv := Binding("x")
+	pv := graph.Binding("x")
 	if pv.IsWildcard() {
 		t.Error("expected IsWildcard to be false")
 	}
@@ -88,20 +90,20 @@ func TestPatternValue_Binding(t *testing.T) {
 		t.Error("expected IsBinding to be true")
 	}
 	if pv.VariableName() != "x" {
-		t.Errorf("expected VariableName = %q, got %q", "x", pv.VariableName())
+		t.Errorf("expected graph.VariableName = %q, got %q", "x", pv.VariableName())
 	}
-	v, ok := pv.ToInterface().(*Variable)
+	v, ok := pv.ToInterface().(*graph.Variable)
 	if !ok || v.Name != "x" {
-		t.Error("expected ToInterface to return *Variable with name 'x'")
+		t.Error("expected ToInterface to return *graph.Variable with name 'x'")
 	}
 }
 
 func TestTypedPattern_ToPattern(t *testing.T) {
 	t.Parallel()
-	tp := &TypedPattern{
-		Subject:   ExactString("alice"),
-		Predicate: ExactString("knows"),
-		Object:    Binding("friend"),
+	tp := &graph.TypedPattern{
+		Subject:   graph.ExactString("alice"),
+		Predicate: graph.ExactString("knows"),
+		Object:    graph.Binding("friend"),
 		Limit:     10,
 		Offset:    5,
 		Reverse:   true,
@@ -115,9 +117,9 @@ func TestTypedPattern_ToPattern(t *testing.T) {
 	if !bytes.Equal(p.Predicate.([]byte), []byte("knows")) {
 		t.Error("expected Predicate to be 'knows'")
 	}
-	v, ok := p.Object.(*Variable)
+	v, ok := p.Object.(*graph.Variable)
 	if !ok || v.Name != "friend" {
-		t.Error("expected Object to be Variable 'friend'")
+		t.Error("expected Object to be graph.Variable 'friend'")
 	}
 	if p.Limit != 10 {
 		t.Errorf("expected Limit = 10, got %d", p.Limit)
@@ -132,10 +134,10 @@ func TestTypedPattern_ToPattern(t *testing.T) {
 
 func TestTypedPattern_WithWildcard(t *testing.T) {
 	t.Parallel()
-	tp := NewTypedPattern(
-		ExactString("alice"),
-		Wildcard(),
-		Binding("obj"),
+	tp := graph.NewTypedPattern(
+		graph.ExactString("alice"),
+		graph.Wildcard(),
+		graph.Binding("obj"),
 	)
 
 	p := tp.ToPattern()
@@ -146,22 +148,22 @@ func TestTypedPattern_WithWildcard(t *testing.T) {
 	if p.Predicate != nil {
 		t.Error("expected Predicate to be nil (wildcard)")
 	}
-	if v, ok := p.Object.(*Variable); !ok || v.Name != "obj" {
-		t.Error("expected Object to be Variable 'obj'")
+	if v, ok := p.Object.(*graph.Variable); !ok || v.Name != "obj" {
+		t.Error("expected Object to be graph.Variable 'obj'")
 	}
 }
 
 func TestVarAlias(t *testing.T) {
 	t.Parallel()
-	// Test that Var is an alias for Variable
-	var v Var = Var{Name: "test"}
+	// Test that graph.Var is an alias for graph.Variable
+	var v graph.Var = graph.Var{Name: "test"}
 	if v.Name != "test" {
 		t.Errorf("expected Name = 'test', got %q", v.Name)
 	}
 
-	// Test that *Var works with IsVariable
+	// Test that *graph.Var works with IsVariable
 	pv := &v
-	if !IsVariable(pv) {
-		t.Error("expected IsVariable to return true for *Var")
+	if !graph.IsVariable(pv) {
+		t.Error("expected IsVariable to return true for *graph.Var")
 	}
 }

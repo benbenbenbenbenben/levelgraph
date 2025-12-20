@@ -58,10 +58,27 @@ package levelgraph
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
+
+	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
+	"github.com/benbenbenbenbenben/levelgraph/pkg/index"
+)
+
+// Type aliases for graph types to maintain package API
+type Triple = graph.Triple
+type Pattern = graph.Pattern
+type Variable = graph.Variable
+type Solution = graph.Solution
+
+var (
+	// NewTriple refers to graph.NewTriple
+	NewTriple = graph.NewTriple
+	// NewTripleFromStrings refers to graph.NewTripleFromStrings
+	NewTripleFromStrings = graph.NewTripleFromStrings
+	// V refers to graph.V
+	V = graph.V
 )
 
 var (
@@ -92,10 +109,10 @@ type DB struct {
 	journalCounter uint64
 
 	// Async embedding fields
-	embedQueue   chan []*Triple // Queue for async embedding
-	embedDone    chan struct{}  // Signals worker goroutine has finished
-	embedWg      sync.WaitGroup // Tracks pending embed operations
-	embedStarted bool           // Whether the embed worker was started
+	embedQueue   chan []*graph.Triple // Queue for async embedding
+	embedDone    chan struct{}        // Signals worker goroutine has finished
+	embedWg      sync.WaitGroup       // Tracks pending embed operations
+	embedStarted bool                 // Whether the embed worker was started
 }
 
 // Open opens or creates a LevelGraph database at the specified path.
@@ -224,14 +241,14 @@ func (db *DB) IsOpen() bool {
 
 // V creates a new Variable for use in queries.
 // This is a convenience method that calls the package-level V function.
-func (db *DB) V(name string) *Variable {
-	return V(name)
+func (db *DB) V(name string) *graph.Variable {
+	return graph.V(name)
 }
 
 // Put inserts one or more triples into the database.
 // If auto-embedding is enabled (via WithAutoEmbed), vectors will be
 // automatically generated for the configured triple components.
-func (db *DB) Put(ctx context.Context, triples ...*Triple) error {
+func (db *DB) Put(ctx context.Context, triples ...*graph.Triple) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -290,7 +307,7 @@ func (db *DB) Put(ctx context.Context, triples ...*Triple) error {
 }
 
 // Del deletes one or more triples from the database.
-func (db *DB) Del(ctx context.Context, triples ...*Triple) error {
+func (db *DB) Del(ctx context.Context, triples ...*graph.Triple) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -339,7 +356,7 @@ func (db *DB) Del(ctx context.Context, triples ...*Triple) error {
 }
 
 // Get retrieves triples matching the given pattern.
-func (db *DB) Get(ctx context.Context, pattern *Pattern) ([]*Triple, error) {
+func (db *DB) Get(ctx context.Context, pattern *graph.Pattern) ([]*graph.Triple, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -358,14 +375,14 @@ func (db *DB) Get(ctx context.Context, pattern *Pattern) ([]*Triple, error) {
 
 // getUnlocked is the internal get method that doesn't acquire locks.
 // Caller must hold at least a read lock.
-func (db *DB) getUnlocked(pattern *Pattern) ([]*Triple, error) {
+func (db *DB) getUnlocked(pattern *graph.Pattern) ([]*graph.Triple, error) {
 	iter, err := db.getIteratorUnlocked(pattern)
 	if err != nil {
 		return nil, err
 	}
 	defer iter.Release()
 
-	var results []*Triple
+	var results []*graph.Triple
 	for iter.Next() {
 		triple, err := iter.Triple()
 		if err != nil {
@@ -382,7 +399,7 @@ func (db *DB) getUnlocked(pattern *Pattern) ([]*Triple, error) {
 }
 
 // GetIterator returns an iterator for triples matching the pattern.
-func (db *DB) GetIterator(ctx context.Context, pattern *Pattern) (*TripleIterator, error) {
+func (db *DB) GetIterator(ctx context.Context, pattern *graph.Pattern) (*TripleIterator, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -395,14 +412,14 @@ func (db *DB) GetIterator(ctx context.Context, pattern *Pattern) (*TripleIterato
 
 // getIteratorUnlocked is the internal iterator method that doesn't acquire locks.
 // Caller must hold at least a read lock.
-func (db *DB) getIteratorUnlocked(pattern *Pattern) (*TripleIterator, error) {
+func (db *DB) getIteratorUnlocked(pattern *graph.Pattern) (*TripleIterator, error) {
 	// Determine the best index to use
 	fields := pattern.ConcreteFields()
-	index := FindIndex(fields, "")
+	idx := index.FindIndex(fields, "")
 
 	// Create range for the query
-	startKey := GenKeyFromPattern(index, pattern)
-	endKey := GenKeyWithUpperBound(index, pattern)
+	startKey := index.GenKeyFromPattern(idx, pattern)
+	endKey := index.GenKeyWithUpperBound(idx, pattern)
 
 	iter := db.store.NewIterator(&Range{Start: startKey, Limit: endKey}, nil)
 
@@ -423,7 +440,7 @@ func (db *DB) getIteratorUnlocked(pattern *Pattern) (*TripleIterator, error) {
 
 // GenerateBatch generates batch operations for a triple.
 // This is useful for external batch management.
-func (db *DB) GenerateBatch(triple *Triple, action string) ([]BatchOp, error) {
+func (db *DB) GenerateBatch(triple *graph.Triple, action string) ([]BatchOp, error) {
 	return db.generateBatchOps(triple, action)
 }
 
@@ -435,13 +452,13 @@ type BatchOp struct {
 }
 
 // generateBatchOps generates the batch operations for all indexes.
-func (db *DB) generateBatchOps(triple *Triple, action string) ([]BatchOp, error) {
-	value, err := json.Marshal(triple)
+func (db *DB) generateBatchOps(triple *graph.Triple, action string) ([]BatchOp, error) {
+	value, err := triple.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("levelgraph: marshal triple: %w", err)
 	}
 
-	keys := GenKeys(triple)
+	keys := index.GenKeys(triple)
 	ops := make([]BatchOp, len(keys))
 
 	for i, key := range keys {
@@ -456,7 +473,7 @@ func (db *DB) generateBatchOps(triple *Triple, action string) ([]BatchOp, error)
 }
 
 // validateTriple checks that a triple has all required fields.
-func validateTriple(triple *Triple) error {
+func validateTriple(triple *graph.Triple) error {
 	if triple == nil {
 		return ErrInvalidTriple
 	}
@@ -469,7 +486,7 @@ func validateTriple(triple *Triple) error {
 // TripleIterator iterates over triples from a query.
 type TripleIterator struct {
 	iter         Iterator
-	pattern      *Pattern
+	pattern      *graph.Pattern
 	offset       int
 	limit        int
 	count        int
@@ -530,15 +547,15 @@ func (ti *TripleIterator) Next() bool {
 }
 
 // Triple returns the current triple.
-func (ti *TripleIterator) Triple() (*Triple, error) {
+func (ti *TripleIterator) Triple() (*graph.Triple, error) {
 	return ti.parseCurrentValue()
 }
 
 // parseCurrentValue parses the current iterator value into a Triple.
-func (ti *TripleIterator) parseCurrentValue() (*Triple, error) {
+func (ti *TripleIterator) parseCurrentValue() (*graph.Triple, error) {
 	value := ti.iter.Value()
-	var triple Triple
-	if err := json.Unmarshal(value, &triple); err != nil {
+	var triple graph.Triple
+	if err := triple.UnmarshalBinary(value); err != nil {
 		return nil, err
 	}
 	return &triple, nil
