@@ -22,7 +22,7 @@ LevelGraph is a graph database built on top of LevelDB, implementing a hexastore
 
 ## 3. Type Safety & Go Idioms
 
-- **`interface{}` Usage**: The `Pattern` struct and `Variable` handling rely heavily on `interface{}`.
+- **`interface{}` Usage**: [DONE] The `Pattern` struct now uses a type-safe `PatternValue` algebraic data type with three kinds: Wildcard, Exact, and Binding. `NewPattern()` provides backward compatibility.
 - **Magic Comments**: No significant overuse.
 
 ## 4. Components Analysis
@@ -30,7 +30,7 @@ LevelGraph is a graph database built on top of LevelDB, implementing a hexastore
 ### Search & Vectors
 
 - **Hybrid Search**: `VectorFilter` applies similarity scoring.
-- **Performance Risk**: `applyVectorFilter` still iterates over intermediate solutions. This remains a potential bottleneck for large result sets.
+- **Performance Risk**: [DONE] `applyVectorFilter` now uses an index lookup strategy for large result sets (>500 solutions), searching the vector index first and intersecting with graph solutions.
 
 ### Facets
 
@@ -38,13 +38,13 @@ LevelGraph is a graph database built on top of LevelDB, implementing a hexastore
 
 ## 5. Testing
 
-- Tests exist and have been verified to pass after the refactoring (`levelgraph_test.go`, `vectors_test.go`, `pattern_typed_test.go`).
+- Tests exist and have been verified to pass after the refactoring (`levelgraph_test.go`, `vectors_test.go`, `pkg/graph/pattern_test.go`, `pkg/graph/variable_test.go`).
 
 ## Recommendations
 
 1.  **Remove Local Replace**: Immediately remove the `replace` directive in `go.mod` or point it to a published tag. (editor: Defer this, depends on another repo doing work!)
 2.  **Refactor Root**: [DONE] Core types moved to `pkg/graph`.
-3.  **Strict Typing**: Migrate `Pattern` to use a algebraic data type approach. (editor: `TypedPattern` exists, further adoption encouraged.)
-4.  **Vector Optimization**: Consider an index look-up strategy. (editor: Explore the options here.)
+3.  **Strict Typing**: [DONE] Migrated `Pattern` to use a type-safe `PatternValue` algebraic data type (Wildcard/Exact/Binding).
+4.  **Vector Optimization**: [DONE] Added index lookup strategy for large result sets in `applyVectorFilter()`.
 5.  **CLI**: [DONE] Added `cmd/levelgraph` for basic operations.
 6.  **Binary Encoding**: [DONE] Implemented efficient binary storage format.

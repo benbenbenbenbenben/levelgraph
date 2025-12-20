@@ -17,7 +17,7 @@ I see you're allergic to `string`. Everything is `[]byte`.
 - Keys? `[]byte`.
 - Your sanity? Serialized to `[]byte`.
 
-The `interface{}` usage in `Pattern` combined with the byte-obsession means users will be casting variables more often than a wizard in a D&D campaign.
+~~The `interface{}` usage in `Pattern` combined with the byte-obsession means users will be casting variables more often than a wizard in a D&D campaign.~~ **UPDATE**: Pattern now uses a type-safe `PatternValue` algebraic data type. The wizards can finally retire.
 
 ## 3. Dijkstra is Rolling in His Grave
 
@@ -25,16 +25,18 @@ The `interface{}` usage in `Pattern` combined with the byte-obsession means user
 `nav.ArchOut("knows").ArchOut("likes")`
 It’s cute. But underneath, `search.go` is doing so much looping and filtering it’s basically a denial-of-service attack on your own CPU.
 
-## 4. The "Vector" Search (A.K.A. Brute Force Lite)
+## 4. The "Vector" Search ~~(A.K.A. Brute Force Lite)~~ (FIXED!)
 
-Your "Hybrid Search" in `search.go`:
+~~Your "Hybrid Search" in `search.go`:~~
 
-1. Find _all_ matches in the graph.
-2. Iterate through _every single one_.
-3. Calculate cosine similarity (dot product + magnitude) for _each_.
-4. Sort the entire list.
+~~1. Find _all_ matches in the graph.~~
+~~2. Iterate through _every single one_.~~
+~~3. Calculate cosine similarity (dot product + magnitude) for _each_.~~
+~~4. Sort the entire list.~~
 
-If you have more than 1000 users, this search function will finish just in time for the heat death of the universe.
+~~If you have more than 1000 users, this search function will finish just in time for the heat death of the universe.~~
+
+**UPDATE**: Vector search now uses an index lookup strategy for large result sets (>500). It searches the vector index first and intersects with graph solutions. The heat death of the universe has been postponed.
 
 ## 5. Project Structure: "Folder? I Hardly Know Her!" (FIXED... mostly)
 
