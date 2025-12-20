@@ -84,6 +84,14 @@ db, err := levelgraph.Open("/path/to/db",
     levelgraph.WithJournal(),   // Enable journalling
     levelgraph.WithFacets(),    // Enable facets
 )
+
+// With structured logging
+import "log/slog"
+
+logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+db, err := levelgraph.Open("/path/to/db",
+    levelgraph.WithLogger(logger),
+)
 ```
 
 ### Triples

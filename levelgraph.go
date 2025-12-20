@@ -151,6 +151,10 @@ func Open(path string, opts ...Option) (*DB, error) {
 	// Start async embed worker if enabled
 	db.startEmbedWorker()
 
+	if options.Logger != nil {
+		options.Logger.Info("database opened", "path", path)
+	}
+
 	return db, nil
 }
 
@@ -204,6 +208,10 @@ func (db *DB) Close() error {
 
 	// Stop embed worker if running
 	db.stopEmbedWorker()
+
+	if db.options.Logger != nil {
+		db.options.Logger.Info("database closed")
+	}
 
 	return db.store.Close()
 }

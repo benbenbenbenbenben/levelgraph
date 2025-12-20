@@ -307,6 +307,10 @@ func (db *DB) Trim(ctx context.Context, before time.Time) (int, error) {
 		}
 	}
 
+	if db.options.Logger != nil {
+		db.options.Logger.Info("journal trim", "entries", count, "before", before)
+	}
+
 	return count, nil
 }
 
@@ -372,6 +376,10 @@ func (db *DB) TrimAndExport(ctx context.Context, before time.Time, targetDB *DB)
 		if err := db.store.Write(deleteBatch, nil); err != nil {
 			return 0, err
 		}
+	}
+
+	if db.options.Logger != nil {
+		db.options.Logger.Info("journal trim and export", "entries", count, "before", before)
 	}
 
 	return count, nil
@@ -446,6 +454,10 @@ func (db *DB) ReplayJournal(ctx context.Context, after time.Time, targetDB *DB) 
 
 	if err := iter.Error(); err != nil {
 		return count, err
+	}
+
+	if db.options.Logger != nil {
+		db.options.Logger.Info("journal replay", "entries", count, "after", after)
 	}
 
 	return count, nil
