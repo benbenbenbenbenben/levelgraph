@@ -5,9 +5,17 @@ A knowledge graph CLI built on LevelGraph for indexing and querying relationship
 ## Installation
 
 ```bash
+# Build from source
 cd example/nolij
 go build .
+
+# Install to your PATH (after building)
+./nolij install
 ```
+
+The `install` command copies nolij to an appropriate location based on your OS:
+- **Linux/macOS**: `~/.local/bin` (or `~/bin` if in PATH)
+- **Windows**: `%LOCALAPPDATA%\Programs\nolij`
 
 ## Usage
 
@@ -29,6 +37,7 @@ nolij <command> [arguments]
 | `stats`                              | Show database statistics                        |
 | `dump`                               | Print all triples in the database               |
 | `nuke`                               | Delete the database (with confirmation)         |
+| `install`                            | Install nolij to your PATH                      |
 
 ## Examples
 

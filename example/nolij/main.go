@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/benbenbenbenbenben/levelgraph"
@@ -50,7 +51,8 @@ func main() {
 		cmdDump()
 	case "nuke":
 		cmdNuke()
-		// TODO: case "install": // install to the users bin path (any OS!) - needs docs etc too
+	case "install":
+		cmdInstall()
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 		printHelp()
@@ -74,6 +76,7 @@ Commands:
   stats                                Show database statistics
   dump                                 Print all triples
   nuke                                 Delete the database (with confirmation)
+  install                              Install nolij to your PATH
   help                                 Show this help message
 
 Examples:
@@ -85,6 +88,7 @@ Examples:
   nolij path alice london              # Find path from alice to london
   nolij join file:README.md :p :b :b "codeblock:has meta:raw" bash
   nolij sync                           # Index .md files
+  nolij install                        # Install to ~/.local/bin or similar
 
 The database is stored in .nolij.db/ in the current directory.`)
 }
@@ -655,4 +659,171 @@ func cmdNuke() {
 	}
 
 	fmt.Println("💥 Database deleted.")
+}
+
+func cmdInstall() {
+	// Get the current executable path
+	execPath, err := os.Executable()
+	if err != nil {
+		fmt.Printf("Error getting executable path: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Resolve any symlinks
+	execPath, err = filepath.EvalSymlinks(execPath)
+	if err != nil {
+		fmt.Printf("Error resolving executable path: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Determine target directory based on OS
+	var targetDir string
+	switch os := getOS(); os {
+	case "windows":
+		// Use %LOCALAPPDATA%\Programs or %USERPROFILE%\bin
+		localAppData := envOrDefault("LOCALAPPDATA", "")
+		if localAppData != "" {
+			targetDir = filepath.Join(localAppData, "Programs", "nolij")
+		} else {
+			home, _ := userHomeDir()
+			targetDir = filepath.Join(home, "bin")
+		}
+	default: // linux, darwin, etc.
+		// Check common bin directories in order of preference
+		home, _ := userHomeDir()
+		candidates := []string{
+			filepath.Join(home, ".local", "bin"), // XDG standard
+			filepath.Join(home, "bin"),           // Traditional
+			"/usr/local/bin",                     // System-wide (may need sudo)
+		}
+
+		// Use first directory that exists and is in PATH, or first candidate
+		pathDirs := filepath.SplitList(envOrDefault("PATH", ""))
+		pathSet := make(map[string]bool)
+		for _, p := range pathDirs {
+			pathSet[p] = true
+		}
+
+		for _, candidate := range candidates {
+			if pathSet[candidate] {
+				targetDir = candidate
+				break
+			}
+		}
+		if targetDir == "" {
+			targetDir = candidates[0] // Default to ~/.local/bin
+		}
+	}
+
+	// Ensure target directory exists
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		fmt.Printf("Error creating directory %s: %v\n", targetDir, err)
+		fmt.Println("You may need to run with elevated privileges (sudo).")
+		os.Exit(1)
+	}
+
+	// Determine target filename
+	targetName := "nolij"
+	if getOS() == "windows" {
+		targetName = "nolij.exe"
+	}
+	targetPath := filepath.Join(targetDir, targetName)
+
+	// Check if we're trying to copy to ourselves
+	if execPath == targetPath {
+		fmt.Println("nolij is already installed at", targetPath)
+		return
+	}
+
+	// Copy the executable
+	fmt.Printf("Installing nolij to %s...\n", targetPath)
+
+	if err := copyFile(execPath, targetPath); err != nil {
+		fmt.Printf("Error copying executable: %v\n", err)
+		if strings.Contains(err.Error(), "permission denied") {
+			fmt.Println("You may need to run with elevated privileges (sudo).")
+		}
+		os.Exit(1)
+	}
+
+	// Make executable on Unix systems
+	if getOS() != "windows" {
+		if err := os.Chmod(targetPath, 0755); err != nil {
+			fmt.Printf("Warning: could not set executable permission: %v\n", err)
+		}
+	}
+
+	fmt.Printf("✅ Installed nolij to %s\n", targetPath)
+
+	// Check if target directory is in PATH
+	pathDirs := filepath.SplitList(envOrDefault("PATH", ""))
+	inPath := false
+	for _, p := range pathDirs {
+		if p == targetDir {
+			inPath = true
+			break
+		}
+	}
+
+	if !inPath {
+		fmt.Println()
+		fmt.Println("⚠️  Note:", targetDir, "is not in your PATH.")
+		switch getOS() {
+		case "windows":
+			fmt.Println("Add it to your PATH environment variable, or run:")
+			fmt.Printf("  setx PATH \"%%PATH%%;%s\"\n", targetDir)
+		default:
+			fmt.Println("Add it to your PATH by adding this to your shell config:")
+			fmt.Printf("  export PATH=\"%s:$PATH\"\n", targetDir)
+		}
+	}
+}
+
+// Helper functions for install command
+
+func getOS() string {
+	return runtime.GOOS
+}
+
+func userHomeDir() (string, error) {
+	home := os.Getenv("HOME")
+	if home == "" {
+		home = os.Getenv("USERPROFILE") // Windows
+	}
+	if home == "" {
+		return "", fmt.Errorf("could not determine home directory")
+	}
+	return home, nil
+}
+
+func envOrDefault(key, defaultVal string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return defaultVal
+}
+
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	// Get source file info for permissions
+	sourceInfo, err := sourceFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	// Create destination file
+	destFile, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE|os.O_TRUNC, sourceInfo.Mode())
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	// Copy contents
+	_, err = io.Copy(destFile, sourceFile)
+	return err
 }
