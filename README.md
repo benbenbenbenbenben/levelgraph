@@ -47,10 +47,8 @@ func main() {
         log.Fatal(err)
     }
 
-    // Query by subject
-    results, err := db.Get(ctx, &levelgraph.Pattern{
-        Subject: []byte("alice"),
-    })
+    // Query by subject using NewPattern (nil = wildcard)
+    results, err := db.Get(ctx, levelgraph.NewPattern("alice", nil, nil))
     if err != nil {
         log.Fatal(err)
     }
@@ -117,63 +115,50 @@ err := db.Del(ctx, triple)
 
 ### Get (Query)
 
-Query triples using patterns:
+Query triples using patterns. Use `NewPattern(subject, predicate, object)` where:
+- `nil` or `""` = wildcard (match any value)
+- `string` or `[]byte` = exact match
+- `levelgraph.V("name")` = variable binding
 
 ```go
 ctx := context.Background()
 
-// Get by subject
-results, err := db.Get(ctx, &levelgraph.Pattern{
-    Subject: []byte("alice"),
-})
+// Get by subject (nil = wildcard)
+results, err := db.Get(ctx, levelgraph.NewPattern("alice", nil, nil))
 
 // Get by predicate and object
-results, err := db.Get(ctx, &levelgraph.Pattern{
-    Predicate: []byte("knows"),
-    Object:    []byte("bob"),
-})
+results, err := db.Get(ctx, levelgraph.NewPattern(nil, "knows", "bob"))
 
 // With limit and offset
-results, err := db.Get(ctx, &levelgraph.Pattern{
-    Subject: []byte("alice"),
-    Limit:   10,
-    Offset:  5,
-})
+pattern := levelgraph.NewPattern("alice", nil, nil)
+pattern.Limit = 10
+pattern.Offset = 5
+results, err := db.Get(ctx, pattern)
 
 // With filter
-results, err := db.Get(ctx, &levelgraph.Pattern{
-    Subject: []byte("alice"),
-    Filter: func(t *levelgraph.Triple) bool {
-        return string(t.Object) != "eve"
-    },
-})
+pattern := levelgraph.NewPattern("alice", nil, nil)
+pattern.Filter = func(t *levelgraph.Triple) bool {
+    return string(t.Object) != "eve"
+}
+results, err := db.Get(ctx, pattern)
 
 // Reverse order
-results, err := db.Get(ctx, &levelgraph.Pattern{
-    Subject: []byte("alice"),
-    Reverse: true,
-})
+pattern := levelgraph.NewPattern("alice", nil, nil)
+pattern.Reverse = true
+results, err := db.Get(ctx, pattern)
 ```
 
 ### Search (Join)
 
-Perform multi-pattern joins using variables:
+Perform multi-pattern joins using variables. Use `levelgraph.V("name")` to create variables that capture matched values:
 
 ```go
 ctx := context.Background()
 
 // Find friends of friends
 results, err := db.Search(ctx, []*levelgraph.Pattern{
-    {
-        Subject:   []byte("alice"),
-        Predicate: []byte("knows"),
-        Object:    levelgraph.V("x"),  // Variable
-    },
-    {
-        Subject:   levelgraph.V("x"),
-        Predicate: []byte("knows"),
-        Object:    levelgraph.V("y"),
-    },
+    levelgraph.NewPattern("alice", "knows", levelgraph.V("x")),
+    levelgraph.NewPattern(levelgraph.V("x"), "knows", levelgraph.V("y")),
 }, nil)
 
 // Each result is a Solution map[string][]byte
@@ -247,7 +232,7 @@ For large result sets, use iterators:
 ctx := context.Background()
 
 // Triple iterator
-iter, err := db.GetIterator(ctx, &levelgraph.Pattern{Subject: []byte("alice")})
+iter, err := db.GetIterator(ctx, levelgraph.NewPattern("alice", nil, nil))
 if err != nil {
     log.Fatal(err)
 }
@@ -382,7 +367,7 @@ Combine graph pattern matching with vector similarity:
 ```go
 // Find people who like topics similar to "machine learning"
 solutions, err := db.Search(ctx, []*levelgraph.Pattern{
-    {Subject: levelgraph.V("person"), Predicate: []byte("likes"), Object: levelgraph.V("topic")},
+    levelgraph.NewPattern(levelgraph.V("person"), "likes", levelgraph.V("topic")),
 }, &levelgraph.SearchOptions{
     VectorFilter: &levelgraph.VectorFilter{
         Variable:  "topic",

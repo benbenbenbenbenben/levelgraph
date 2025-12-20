@@ -531,6 +531,59 @@ func (db *DB) applyVectorFilter(ctx context.Context, solutions []graph.Solution,
 	scored := make([]scoredSolution, 0, len(solutions))
 	scoreCache := make(map[string]float32) // Cache scores by vector ID string
 
+	// Optimization: If TopK is set and we have many solutions, try index lookup strategy first
+	const optimizationThreshold = 500
+	if vf.TopK > 0 && len(solutions) > optimizationThreshold {
+		// Collect unique variable values
+		uniqueValues := make(map[string][]graph.Solution)
+		for _, sol := range solutions {
+			if val, ok := sol[vf.Variable]; ok {
+				uniqueValues[string(val)] = append(uniqueValues[string(val)], sol)
+			}
+		}
+
+		if len(uniqueValues) > optimizationThreshold {
+			// Search vector index for candidates
+			// We fetch more than TopK because some might not be in our solutions
+			searchK := vf.TopK * 5
+			if searchK < optimizationThreshold {
+				searchK = optimizationThreshold
+			}
+			matches, err := db.options.VectorIndex.Search(queryVec, searchK)
+			if err == nil {
+				foundCount := 0
+				for _, m := range matches {
+					// Extract value from ID (assumes MakeID format)
+					_, parts := vector.ParseID(m.ID)
+					if len(parts) == 0 {
+						continue
+					}
+					valStr := string(parts[0])
+
+					if sols, found := uniqueValues[valStr]; found {
+						for _, sol := range sols {
+							scored = append(scored, scoredSolution{
+								solution: sol,
+								score:    m.Score,
+							})
+						}
+						scoreCache[string(m.ID)] = m.Score
+						foundCount++
+						if vf.TopK > 0 && foundCount >= vf.TopK && vf.MinScore <= m.Score {
+							// Found enough matches in the top candidates
+							goto finalize
+						}
+					}
+				}
+				// If we didn't find enough, we fall back to exhaustive search
+				// but we've already scored some, so we can skip them.
+				// However, we need to clear the scored slice to avoid duplicates
+				// since the loop below will re-add them using the cache.
+				scored = scored[:0]
+			}
+		}
+	}
+
 	for _, sol := range solutions {
 		varValue, ok := sol[vf.Variable]
 		if !ok {
@@ -564,7 +617,6 @@ func (db *DB) applyVectorFilter(ctx context.Context, solutions []graph.Solution,
 		}
 
 		// Compute similarity and normalize to [0, 1] range
-		// Use cosine distance, then normalize using the same function as Index.Search
 		distance := vector.Cosine(queryVec, vec)
 		normalizedScore := vector.NormalizeScore(distance)
 
@@ -576,6 +628,7 @@ func (db *DB) applyVectorFilter(ctx context.Context, solutions []graph.Solution,
 		})
 	}
 
+finalize:
 	// Apply minimum score filter
 	if vf.MinScore > 0 {
 		filtered := make([]scoredSolution, 0, len(scored))

@@ -503,8 +503,8 @@ func TestDB_VectorAndTriplesTogether(t *testing.T) {
 	for _, r := range results {
 		sport := r.Parts[0]
 		triples, err := db.Get(ctx, &graph.Pattern{
-			Predicate: []byte("likes"),
-			Object:    sport,
+			Predicate: graph.ExactString("likes"),
+			Object:    graph.Exact(sport),
 		})
 		if err != nil {
 			t.Fatalf("Get() error = %v", err)
@@ -662,7 +662,7 @@ func TestDB_HybridSearch(t *testing.T) {
 	// Hybrid search: "Find people who like racket sports"
 	// This combines graph traversal with vector similarity
 	solutions, err := db.Search(ctx, []*graph.Pattern{
-		{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("sport")},
+		{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("sport")},
 	}, &SearchOptions{
 		VectorFilter: &VectorFilter{
 			Variable: "sport",
@@ -723,7 +723,7 @@ func TestDB_HybridSearchWithMinScore(t *testing.T) {
 
 	// Search with minimum score threshold
 	solutions, err := db.Search(ctx, []*graph.Pattern{
-		{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("sport")},
+		{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("sport")},
 	}, &SearchOptions{
 		VectorFilter: &VectorFilter{
 			Variable: "sport",
@@ -773,7 +773,7 @@ func TestDB_HybridSearchWithTextQuery(t *testing.T) {
 
 	// Search using text query (will be embedded)
 	solutions, err := db.Search(ctx, []*graph.Pattern{
-		{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("sport")},
+		{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("sport")},
 	}, &SearchOptions{
 		VectorFilter: &VectorFilter{
 			Variable:  "sport",
@@ -817,8 +817,8 @@ func TestDB_HybridSearchMultiplePatterns(t *testing.T) {
 
 	// Two-pattern search: find people -> sport -> category, filter by category similarity
 	solutions, err := db.Search(ctx, []*graph.Pattern{
-		{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("sport")},
-		{Subject: graph.V("sport"), Predicate: []byte("category"), Object: graph.V("cat")},
+		{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("sport")},
+		{Subject: graph.Binding("sport"), Predicate: graph.ExactString("category"), Object: graph.Binding("cat")},
 	}, &SearchOptions{
 		VectorFilter: &VectorFilter{
 			Variable: "cat",
@@ -1209,7 +1209,7 @@ func TestDB_HybridSearchDuplicateVariableValues(t *testing.T) {
 
 	// Hybrid search for racket sports
 	solutions, err := db.Search(ctx, []*graph.Pattern{
-		{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("sport")},
+		{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("sport")},
 	}, &SearchOptions{
 		VectorFilter: &VectorFilter{
 			Variable: "sport",
@@ -1370,7 +1370,7 @@ func TestDB_VectorFilterNonExistentVariable(t *testing.T) {
 
 	// Search with VectorFilter for a variable that doesn't exist in the pattern
 	solutions, err := db.Search(ctx, []*graph.Pattern{
-		{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("sport")},
+		{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("sport")},
 	}, &SearchOptions{
 		VectorFilter: &VectorFilter{
 			Variable: "nonexistent_var", // This variable doesn't exist
@@ -1412,7 +1412,7 @@ func TestDB_VectorFilterQueryTextNoEmbedder(t *testing.T) {
 
 	// Try to search with QueryText (requires embedder)
 	_, err = db.Search(ctx, []*graph.Pattern{
-		{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("sport")},
+		{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("sport")},
 	}, &SearchOptions{
 		VectorFilter: &VectorFilter{
 			Variable:  "sport",

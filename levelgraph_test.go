@@ -318,7 +318,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	})
 
 	t.Run("Get by subject", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("a")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -331,7 +331,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	})
 
 	t.Run("Get by predicate", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("b")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: graph.ExactString("b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -341,7 +341,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	})
 
 	t.Run("Get by object", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &graph.Pattern{Object: []byte("c")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Object: graph.ExactString("c")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -351,7 +351,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	})
 
 	t.Run("Get by subject and predicate", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a"), Predicate: []byte("b")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("a"), Predicate: graph.ExactString("b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -361,7 +361,7 @@ func TestDB_PutAndGet(t *testing.T) {
 	})
 
 	t.Run("Get with no match", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("notfound")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("notfound")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -383,7 +383,7 @@ func TestDB_Del(t *testing.T) {
 	}
 
 	// Verify it exists
-	results, _ := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a")})
+	results, _ := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("a")})
 	if len(results) != 1 {
 		t.Fatal("triple should exist before delete")
 	}
@@ -395,7 +395,7 @@ func TestDB_Del(t *testing.T) {
 	}
 
 	// Verify it's gone
-	results, _ = db.Get(context.Background(), &graph.Pattern{Subject: []byte("a")})
+	results, _ = db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("a")})
 	if len(results) != 0 {
 		t.Fatal("triple should not exist after delete")
 	}
@@ -415,7 +415,7 @@ func TestDB_MultipleTriples(t *testing.T) {
 	}
 
 	t.Run("Get by shared predicate", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("b")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: graph.ExactString("b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -425,7 +425,7 @@ func TestDB_MultipleTriples(t *testing.T) {
 	})
 
 	t.Run("Get by specific subject", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a1")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("a1")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -444,7 +444,7 @@ func TestDB_Limit(t *testing.T) {
 	t2 := graph.NewTripleFromStrings("a2", "b", "d")
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("b"), Limit: 1})
+	results, err := db.Get(context.Background(), &graph.Pattern{Predicate: graph.ExactString("b"), Limit: 1})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -462,7 +462,7 @@ func TestDB_Offset(t *testing.T) {
 	t2 := graph.NewTripleFromStrings("a2", "b", "d")
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("b"), Offset: 1})
+	results, err := db.Get(context.Background(), &graph.Pattern{Predicate: graph.ExactString("b"), Offset: 1})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -484,7 +484,7 @@ func TestDB_Filter(t *testing.T) {
 		return string(triple.Object) == "d"
 	}
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a"), Filter: filter})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("a"), Filter: filter})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -508,7 +508,7 @@ func TestDB_SpecialCharacters(t *testing.T) {
 			t.Fatalf("Put failed: %v", err)
 		}
 
-		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a::b")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("a::b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -527,7 +527,7 @@ func TestDB_SpecialCharacters(t *testing.T) {
 			t.Fatalf("Put failed: %v", err)
 		}
 
-		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a\\b")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("a\\b")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -611,9 +611,9 @@ func TestSearch_SinglePattern(t *testing.T) {
 	t.Run("search with one result", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*Pattern{
 			{
-				Subject:   graph.V("x"),
-				Predicate: []byte("friend"),
-				Object:    []byte("daniele"),
+				Subject:   graph.Binding("x"),
+				Predicate: graph.ExactString("friend"),
+				Object:    graph.ExactString("daniele"),
 			},
 		}, nil)
 		if err != nil {
@@ -630,9 +630,9 @@ func TestSearch_SinglePattern(t *testing.T) {
 	t.Run("search with multiple results", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*Pattern{
 			{
-				Subject:   graph.V("x"),
-				Predicate: []byte("friend"),
-				Object:    []byte("marco"),
+				Subject:   graph.Binding("x"),
+				Predicate: graph.ExactString("friend"),
+				Object:    graph.ExactString("marco"),
 			},
 		}, nil)
 		if err != nil {
@@ -657,14 +657,14 @@ func TestSearch_Join(t *testing.T) {
 		// Find people who are friends with both marco and matteo
 		results, err := db.Search(context.Background(), []*Pattern{
 			{
-				Subject:   graph.V("x"),
-				Predicate: []byte("friend"),
-				Object:    []byte("marco"),
+				Subject:   graph.Binding("x"),
+				Predicate: graph.ExactString("friend"),
+				Object:    graph.ExactString("marco"),
 			},
 			{
-				Subject:   graph.V("x"),
-				Predicate: []byte("friend"),
-				Object:    []byte("matteo"),
+				Subject:   graph.Binding("x"),
+				Predicate: graph.ExactString("friend"),
+				Object:    graph.ExactString("matteo"),
 			},
 		}, nil)
 		if err != nil {
@@ -688,19 +688,19 @@ func TestSearch_Join(t *testing.T) {
 		// Find friends of friends of matteo who are friends with davide
 		results, err := db.Search(context.Background(), []*Pattern{
 			{
-				Subject:   []byte("matteo"),
-				Predicate: []byte("friend"),
-				Object:    graph.V("x"),
+				Subject:   graph.ExactString("matteo"),
+				Predicate: graph.ExactString("friend"),
+				Object:    graph.Binding("x"),
 			},
 			{
-				Subject:   graph.V("x"),
-				Predicate: []byte("friend"),
-				Object:    graph.V("y"),
+				Subject:   graph.Binding("x"),
+				Predicate: graph.ExactString("friend"),
+				Object:    graph.Binding("y"),
 			},
 			{
-				Subject:   graph.V("y"),
-				Predicate: []byte("friend"),
-				Object:    []byte("davide"),
+				Subject:   graph.Binding("y"),
+				Predicate: graph.ExactString("friend"),
+				Object:    graph.ExactString("davide"),
 			},
 		}, nil)
 		if err != nil {
@@ -721,14 +721,14 @@ func TestSearch_Join(t *testing.T) {
 		// Find pairs where both are friends with each other
 		results, err := db.Search(context.Background(), []*Pattern{
 			{
-				Subject:   graph.V("x"),
-				Predicate: []byte("friend"),
-				Object:    graph.V("y"),
+				Subject:   graph.Binding("x"),
+				Predicate: graph.ExactString("friend"),
+				Object:    graph.Binding("y"),
 			},
 			{
-				Subject:   graph.V("y"),
-				Predicate: []byte("friend"),
-				Object:    graph.V("x"),
+				Subject:   graph.Binding("y"),
+				Predicate: graph.ExactString("friend"),
+				Object:    graph.Binding("x"),
 			},
 		}, nil)
 		if err != nil {
@@ -744,14 +744,14 @@ func TestSearch_Join(t *testing.T) {
 		// Find common friends of lucio and daniele
 		results, err := db.Search(context.Background(), []*Pattern{
 			{
-				Subject:   []byte("lucio"),
-				Predicate: []byte("friend"),
-				Object:    graph.V("x"),
+				Subject:   graph.ExactString("lucio"),
+				Predicate: graph.ExactString("friend"),
+				Object:    graph.Binding("x"),
 			},
 			{
-				Subject:   []byte("daniele"),
-				Predicate: []byte("friend"),
-				Object:    graph.V("x"),
+				Subject:   graph.ExactString("daniele"),
+				Predicate: graph.ExactString("friend"),
+				Object:    graph.Binding("x"),
 			},
 		}, nil)
 		if err != nil {
@@ -775,14 +775,14 @@ func TestSearch_Limit(t *testing.T) {
 
 	results, err := db.Search(context.Background(), []*Pattern{
 		{
-			Subject:   graph.V("x"),
-			Predicate: []byte("friend"),
-			Object:    []byte("marco"),
+			Subject:   graph.Binding("x"),
+			Predicate: graph.ExactString("friend"),
+			Object:    graph.ExactString("marco"),
 		},
 		{
-			Subject:   graph.V("x"),
-			Predicate: []byte("friend"),
-			Object:    []byte("matteo"),
+			Subject:   graph.Binding("x"),
+			Predicate: graph.ExactString("friend"),
+			Object:    graph.ExactString("matteo"),
 		},
 	}, &SearchOptions{Limit: 1})
 	if err != nil {
@@ -804,14 +804,14 @@ func TestSearch_Offset(t *testing.T) {
 
 	results, err := db.Search(context.Background(), []*Pattern{
 		{
-			Subject:   graph.V("x"),
-			Predicate: []byte("friend"),
-			Object:    []byte("marco"),
+			Subject:   graph.Binding("x"),
+			Predicate: graph.ExactString("friend"),
+			Object:    graph.ExactString("marco"),
 		},
 		{
-			Subject:   graph.V("x"),
-			Predicate: []byte("friend"),
-			Object:    []byte("matteo"),
+			Subject:   graph.Binding("x"),
+			Predicate: graph.ExactString("friend"),
+			Object:    graph.ExactString("matteo"),
 		},
 	}, &SearchOptions{Offset: 1})
 	if err != nil {
@@ -833,14 +833,14 @@ func TestSearch_SolutionFilter(t *testing.T) {
 	// Find friends of matteo, but filter out daniele
 	results, err := db.Search(context.Background(), []*Pattern{
 		{
-			Subject:   []byte("matteo"),
-			Predicate: []byte("friend"),
-			Object:    graph.V("y"),
+			Subject:   graph.ExactString("matteo"),
+			Predicate: graph.ExactString("friend"),
+			Object:    graph.Binding("y"),
 		},
 		{
-			Subject:   graph.V("y"),
-			Predicate: []byte("friend"),
-			Object:    graph.V("x"),
+			Subject:   graph.Binding("y"),
+			Predicate: graph.ExactString("friend"),
+			Object:    graph.Binding("x"),
 		},
 	}, &SearchOptions{
 		Filter: func(s graph.Solution) bool {
@@ -868,20 +868,20 @@ func TestSearch_Materialized(t *testing.T) {
 
 	results, err := db.Search(context.Background(), []*Pattern{
 		{
-			Subject:   graph.V("x"),
-			Predicate: []byte("friend"),
-			Object:    []byte("marco"),
+			Subject:   graph.Binding("x"),
+			Predicate: graph.ExactString("friend"),
+			Object:    graph.ExactString("marco"),
 		},
 		{
-			Subject:   graph.V("x"),
-			Predicate: []byte("friend"),
-			Object:    []byte("matteo"),
+			Subject:   graph.Binding("x"),
+			Predicate: graph.ExactString("friend"),
+			Object:    graph.ExactString("matteo"),
 		},
 	}, &SearchOptions{
 		Materialized: &graph.Pattern{
-			Subject:   graph.V("x"),
-			Predicate: []byte("newpredicate"),
-			Object:    []byte("abcde"),
+			Subject:   graph.Binding("x"),
+			Predicate: graph.ExactString("newpredicate"),
+			Object:    graph.ExactString("abcde"),
 		},
 	})
 	if err != nil {
@@ -912,9 +912,9 @@ func TestSearch_PatternFilter(t *testing.T) {
 	// Find friends of daniele but filter at pattern level
 	results, err := db.Search(context.Background(), []*Pattern{
 		{
-			Subject:   graph.V("x"),
-			Predicate: []byte("friend"),
-			Object:    []byte("daniele"),
+			Subject:   graph.Binding("x"),
+			Predicate: graph.ExactString("friend"),
+			Object:    graph.ExactString("daniele"),
 			Filter: func(t *graph.Triple) bool {
 				return string(t.Subject) != "matteo"
 			},
@@ -951,9 +951,9 @@ func TestSearchIterator(t *testing.T) {
 
 	iter, err := db.SearchIterator(context.Background(), []*Pattern{
 		{
-			Subject:   graph.V("x"),
-			Predicate: []byte("friend"),
-			Object:    []byte("marco"),
+			Subject:   graph.Binding("x"),
+			Predicate: graph.ExactString("friend"),
+			Object:    graph.ExactString("marco"),
 		},
 	}, nil)
 	if err != nil {
@@ -1516,12 +1516,12 @@ func TestJournal_Replay(t *testing.T) {
 	}
 
 	// Check replay result - should only have t2
-	results1, _ := replayDB.Get(context.Background(), &graph.Pattern{Subject: []byte("a")})
+	results1, _ := replayDB.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("a")})
 	if len(results1) != 0 {
 		t.Error("expected triple 'a' to be deleted")
 	}
 
-	results2, _ := replayDB.Get(context.Background(), &graph.Pattern{Subject: []byte("d")})
+	results2, _ := replayDB.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("d")})
 	if len(results2) != 1 {
 		t.Error("expected triple 'd' to exist")
 	}
@@ -1822,7 +1822,7 @@ func TestUnicode_BasicTriple(t *testing.T) {
 		t.Fatalf("Put failed: %v", err)
 	}
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("车")})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("车")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -1846,7 +1846,7 @@ func TestUnicode_Emoji(t *testing.T) {
 	}
 
 	t.Run("Get by subject", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("􀃿")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("􀃿")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1856,7 +1856,7 @@ func TestUnicode_Emoji(t *testing.T) {
 	})
 
 	t.Run("Get by object", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &graph.Pattern{Object: []byte("🚃")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Object: graph.ExactString("🚃")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1866,7 +1866,7 @@ func TestUnicode_Emoji(t *testing.T) {
 	})
 
 	t.Run("Get by predicate", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("🜁")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: graph.ExactString("🜁")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1876,7 +1876,7 @@ func TestUnicode_Emoji(t *testing.T) {
 	})
 
 	t.Run("Get by subject and predicate", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("􀃿"), Predicate: []byte("🜁")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("􀃿"), Predicate: graph.ExactString("🜁")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1895,7 +1895,7 @@ func TestUnicode_ExactMatch(t *testing.T) {
 	t2 := graph.NewTriple([]byte("车"), []byte("是"), []byte("动物"))
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("车")})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("车")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -1916,7 +1916,7 @@ func TestUnicode_MultipleTriples(t *testing.T) {
 	db.Put(context.Background(), t1, t2)
 
 	t.Run("Get by shared predicate", func(t *testing.T) {
-		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("是")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: graph.ExactString("是")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1927,7 +1927,7 @@ func TestUnicode_MultipleTriples(t *testing.T) {
 
 	t.Run("Delete and verify", func(t *testing.T) {
 		db.Del(context.Background(), t2)
-		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("是")})
+		results, err := db.Get(context.Background(), &graph.Pattern{Predicate: graph.ExactString("是")})
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
@@ -1949,7 +1949,7 @@ func TestUnicode_Filter(t *testing.T) {
 		return string(triple.Object) == "动物"
 	}
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("车"), Predicate: []byte("是"), Filter: filter})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("车"), Predicate: graph.ExactString("是"), Filter: filter})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -1978,7 +1978,7 @@ func TestBinary_ArbitraryBytes(t *testing.T) {
 		t.Fatalf("Put failed: %v", err)
 	}
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Subject: subject})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.Exact(subject)})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2010,7 +2010,7 @@ func TestBinary_MixedContent(t *testing.T) {
 	triple := graph.NewTriple(subject, predicate, object)
 	db.Put(context.Background(), triple)
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Subject: subject, Predicate: predicate})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.Exact(subject), Predicate: graph.Exact(predicate)})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2035,7 +2035,7 @@ func TestEdgeCase_PrefixMatching(t *testing.T) {
 	t2 := graph.NewTripleFromStrings("a", "b", "d")
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a")})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("a")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2055,7 +2055,7 @@ func TestEdgeCase_StringEndingWithColon(t *testing.T) {
 	t2 := graph.NewTripleFromStrings("a:", "b", "c")
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a:")})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("a:")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2075,7 +2075,7 @@ func TestEdgeCase_StringEndingWithBackslash(t *testing.T) {
 	t2 := graph.NewTripleFromStrings("a\\", "b", "c")
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a\\")})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("a\\")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2095,7 +2095,7 @@ func TestEdgeCase_StringWithIndexEscapedSeparator(t *testing.T) {
 	t2 := graph.NewTripleFromStrings("a\\::a", "b", "c")
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a")})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("a")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2130,7 +2130,7 @@ func TestEdgeCase_Reverse(t *testing.T) {
 	t2 := graph.NewTripleFromStrings("a2", "b", "d")
 	db.Put(context.Background(), t1, t2)
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("b"), Reverse: true})
+	results, err := db.Get(context.Background(), &graph.Pattern{Predicate: graph.ExactString("b"), Reverse: true})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2155,7 +2155,7 @@ func TestEdgeCase_ReverseLimitOffset(t *testing.T) {
 	t3 := graph.NewTripleFromStrings("a3", "b", "e")
 	db.Put(context.Background(), t1, t2, t3)
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte("b"), Reverse: true, Limit: 1})
+	results, err := db.Get(context.Background(), &graph.Pattern{Predicate: graph.ExactString("b"), Reverse: true, Limit: 1})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2275,29 +2275,29 @@ func TestAsVariable(t *testing.T) {
 }
 
 func TestPattern_HasVariable(t *testing.T) {
-	p1 := &graph.Pattern{Subject: []byte("a"), Predicate: []byte("b"), Object: []byte("c")}
+	p1 := &graph.Pattern{Subject: graph.ExactString("a"), Predicate: graph.ExactString("b"), Object: graph.ExactString("c")}
 	if p1.HasVariable() {
 		t.Error("pattern without variables should return false")
 	}
 
-	p2 := &graph.Pattern{Subject: graph.V("x"), Predicate: []byte("b"), Object: []byte("c")}
+	p2 := &graph.Pattern{Subject: graph.Binding("x"), Predicate: graph.ExactString("b"), Object: graph.ExactString("c")}
 	if !p2.HasVariable() {
 		t.Error("pattern with subject variable should return true")
 	}
 
-	p3 := &graph.Pattern{Subject: []byte("a"), Predicate: graph.V("p"), Object: []byte("c")}
+	p3 := &graph.Pattern{Subject: graph.ExactString("a"), Predicate: graph.Binding("p"), Object: graph.ExactString("c")}
 	if !p3.HasVariable() {
 		t.Error("pattern with predicate variable should return true")
 	}
 
-	p4 := &graph.Pattern{Subject: []byte("a"), Predicate: []byte("b"), Object: graph.V("o")}
+	p4 := &graph.Pattern{Subject: graph.ExactString("a"), Predicate: graph.ExactString("b"), Object: graph.Binding("o")}
 	if !p4.HasVariable() {
 		t.Error("pattern with object variable should return true")
 	}
 }
 
 func TestPattern_VariableFields(t *testing.T) {
-	p := &graph.Pattern{Subject: graph.V("s"), Predicate: []byte("p"), Object: graph.V("o")}
+	p := &graph.Pattern{Subject: graph.Binding("s"), Predicate: graph.ExactString("p"), Object: graph.Binding("o")}
 	fields := p.VariableFields()
 
 	if len(fields) != 2 {
@@ -2316,7 +2316,7 @@ func TestPattern_VariableFields(t *testing.T) {
 
 func TestPattern_ToTriple(t *testing.T) {
 	// Pattern with all concrete values
-	p1 := &graph.Pattern{Subject: []byte("a"), Predicate: []byte("b"), Object: []byte("c")}
+	p1 := &graph.Pattern{Subject: graph.ExactString("a"), Predicate: graph.ExactString("b"), Object: graph.ExactString("c")}
 	triple := p1.ToTriple()
 	if triple == nil {
 		t.Fatal("expected triple, got nil")
@@ -2326,13 +2326,13 @@ func TestPattern_ToTriple(t *testing.T) {
 	}
 
 	// Pattern with nil field
-	p2 := &graph.Pattern{Subject: []byte("a"), Predicate: nil, Object: []byte("c")}
+	p2 := &graph.Pattern{Subject: graph.ExactString("a"), Predicate: graph.Wildcard(), Object: graph.ExactString("c")}
 	if p2.ToTriple() != nil {
 		t.Error("pattern with nil field should return nil")
 	}
 
 	// Pattern with variable
-	p3 := &graph.Pattern{Subject: []byte("a"), Predicate: graph.V("p"), Object: []byte("c")}
+	p3 := &graph.Pattern{Subject: graph.ExactString("a"), Predicate: graph.Binding("p"), Object: graph.ExactString("c")}
 	if p3.ToTriple() != nil {
 		t.Error("pattern with variable should return nil")
 	}
@@ -2373,7 +2373,7 @@ func TestDB_GetIterator(t *testing.T) {
 	t2 := graph.NewTripleFromStrings("a", "b", "d")
 	db.Put(context.Background(), t1, t2)
 
-	iter, err := db.GetIterator(context.Background(), &graph.Pattern{Subject: []byte("a")})
+	iter, err := db.GetIterator(context.Background(), &graph.Pattern{Subject: graph.ExactString("a")})
 	if err != nil {
 		t.Fatalf("GetIterator failed: %v", err)
 	}
@@ -2438,15 +2438,15 @@ func TestNavigator_Triples(t *testing.T) {
 
 	// Use Where to add a pattern that binds subject, predicate, object
 	nav := db.Nav(context.Background(), nil).Where(&graph.Pattern{
-		Subject:   graph.V("s"),
-		Predicate: graph.V("p"),
-		Object:    graph.V("o"),
+		Subject:   graph.Binding("s"),
+		Predicate: graph.Binding("p"),
+		Object:    graph.Binding("o"),
 	})
 	// Materialize the solutions into triples using the variable names
 	triples, err := nav.Triples(&graph.Pattern{
-		Subject:   graph.V("s"),
-		Predicate: graph.V("p"),
-		Object:    graph.V("o"),
+		Subject:   graph.Binding("s"),
+		Predicate: graph.Binding("p"),
+		Object:    graph.Binding("o"),
 	})
 	if err != nil {
 		t.Fatalf("Triples failed: %v", err)
@@ -2476,7 +2476,7 @@ func TestNavigator_Filter(t *testing.T) {
 	)
 
 	nav := db.Nav(context.Background(), nil)
-	nav.conditions = append(nav.conditions, &graph.Pattern{Predicate: []byte("age"), Object: graph.V("age")})
+	nav.conditions = append(nav.conditions, &graph.Pattern{Predicate: graph.ExactString("age"), Object: graph.Binding("age")})
 	nav = nav.Filter(func(t *graph.Triple) bool {
 		return string(t.Subject) == "alice"
 	})
@@ -2497,9 +2497,9 @@ func TestNavigator_Where(t *testing.T) {
 	db.Put(context.Background(), graph.NewTripleFromStrings("alice", "knows", "bob"))
 
 	nav := db.Nav(context.Background(), nil).Where(&graph.Pattern{
-		Subject:   graph.V("s"),
-		Predicate: []byte("knows"),
-		Object:    graph.V("o"),
+		Subject:   graph.Binding("s"),
+		Predicate: graph.ExactString("knows"),
+		Object:    graph.Binding("o"),
 	})
 
 	solutions, err := nav.Solutions()
@@ -2640,7 +2640,7 @@ func TestOpenWithDB(t *testing.T) {
 		t.Fatalf("Put failed: %v", err)
 	}
 
-	results, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("a")})
+	results, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("a")})
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
@@ -2702,31 +2702,31 @@ func TestValidateTriple_EdgeCases(t *testing.T) {
 }
 
 func TestNewPattern_EdgeCases(t *testing.T) {
-	// Empty byte slice treated as nil
+	// Empty byte slice treated as wildcard
 	p := graph.NewPattern([]byte{}, "pred", "obj")
-	if p.Subject != nil {
-		t.Error("empty []byte should be treated as nil")
+	if !p.Subject.IsWildcard() {
+		t.Error("empty []byte should be treated as wildcard")
 	}
 
-	// Empty string treated as nil
+	// Empty string treated as wildcard
 	p = graph.NewPattern("", "pred", "obj")
-	if p.Subject != nil {
-		t.Error("empty string should be treated as nil")
+	if !p.Subject.IsWildcard() {
+		t.Error("empty string should be treated as wildcard")
 	}
 
 	// Bool values
 	p = graph.NewPattern(true, false, "obj")
-	if string(p.Subject.([]byte)) != "true" {
-		t.Errorf("expected 'true', got '%s'", p.Subject)
+	if string(p.Subject.Data()) != "true" {
+		t.Errorf("expected 'true', got '%s'", p.Subject.Data())
 	}
-	if string(p.Predicate.([]byte)) != "false" {
-		t.Errorf("expected 'false', got '%s'", p.Predicate)
+	if string(p.Predicate.Data()) != "false" {
+		t.Errorf("expected 'false', got '%s'", p.Predicate.Data())
 	}
 
-	// Unknown type defaults to nil
+	// Unknown type defaults to wildcard
 	p = graph.NewPattern(123, "pred", "obj")
-	if p.Subject != nil {
-		t.Error("unknown type should be treated as nil")
+	if !p.Subject.IsWildcard() {
+		t.Error("unknown type should be treated as wildcard")
 	}
 }
 
@@ -2749,29 +2749,29 @@ func TestPattern_Matches_EdgeCases(t *testing.T) {
 	}
 
 	// Pattern with subject only
-	p = &graph.Pattern{Subject: []byte("alice")}
+	p = &graph.Pattern{Subject: graph.ExactString("alice")}
 	if !p.Matches(triple) {
 		t.Error("pattern with matching subject should match")
 	}
 
-	p = &graph.Pattern{Subject: []byte("charlie")}
+	p = &graph.Pattern{Subject: graph.ExactString("charlie")}
 	if p.Matches(triple) {
 		t.Error("pattern with non-matching subject should not match")
 	}
 
 	// Pattern with predicate only
-	p = &graph.Pattern{Predicate: []byte("knows")}
+	p = &graph.Pattern{Predicate: graph.ExactString("knows")}
 	if !p.Matches(triple) {
 		t.Error("pattern with matching predicate should match")
 	}
 
 	// Pattern with object only
-	p = &graph.Pattern{Object: []byte("bob")}
+	p = &graph.Pattern{Object: graph.ExactString("bob")}
 	if !p.Matches(triple) {
 		t.Error("pattern with matching object should match")
 	}
 
-	p = &graph.Pattern{Object: []byte("charlie")}
+	p = &graph.Pattern{Object: graph.ExactString("charlie")}
 	if p.Matches(triple) {
 		t.Error("pattern with non-matching object should not match")
 	}

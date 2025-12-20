@@ -155,15 +155,15 @@ func cmdFind(args []string) {
 	}
 	defer db.Close()
 
-	pattern := &levelgraph.Pattern{}
+	pattern := levelgraph.NewPattern(nil, nil, nil)
 	if args[0] != "?" && args[0] != "*" {
-		pattern.Subject = []byte(args[0])
+		pattern.Subject = levelgraph.ExactString(args[0])
 	}
 	if args[1] != "?" && args[1] != "*" {
-		pattern.Predicate = []byte(args[1])
+		pattern.Predicate = levelgraph.ExactString(args[1])
 	}
 	if args[2] != "?" && args[2] != "*" {
-		pattern.Object = []byte(args[2])
+		pattern.Object = levelgraph.ExactString(args[2])
 	}
 
 	results, err := db.Get(context.Background(), pattern)
@@ -196,9 +196,7 @@ func cmdFrom(args []string) {
 	}
 	defer db.Close()
 
-	results, err := db.Get(context.Background(), &levelgraph.Pattern{
-		Subject: []byte(args[0]),
-	})
+	results, err := db.Get(context.Background(), levelgraph.NewPattern(args[0], nil, nil))
 	if err != nil {
 		fmt.Printf("Error searching: %v\n", err)
 		os.Exit(1)
@@ -246,9 +244,7 @@ func cmdPath(args []string) {
 		current := queue[0]
 		queue = queue[1:]
 
-		results, err := db.Get(context.Background(), &levelgraph.Pattern{
-			Subject: []byte(current.node),
-		})
+		results, err := db.Get(context.Background(), levelgraph.NewPattern(current.node, nil, nil))
 		if err != nil {
 			continue
 		}
@@ -318,16 +314,8 @@ func cmdJoin(args []string) {
 		return []byte(s)
 	}
 
-	pattern1 := &levelgraph.Pattern{
-		Subject:   parseValue(args[0]),
-		Predicate: parseValue(args[1]),
-		Object:    parseValue(args[2]),
-	}
-	pattern2 := &levelgraph.Pattern{
-		Subject:   parseValue(args[3]),
-		Predicate: parseValue(args[4]),
-		Object:    parseValue(args[5]),
-	}
+	pattern1 := levelgraph.NewPattern(parseValue(args[0]), parseValue(args[1]), parseValue(args[2]))
+	pattern2 := levelgraph.NewPattern(parseValue(args[3]), parseValue(args[4]), parseValue(args[5]))
 
 	results, err := db.Search(context.Background(), []*levelgraph.Pattern{pattern1, pattern2}, nil)
 	if err != nil {
@@ -412,10 +400,7 @@ func cmdSync(args []string) {
 		}
 
 		// Check existing hash
-		existingResults, err := db.Get(context.Background(), &levelgraph.Pattern{
-			Subject:   []byte(fileKey),
-			Predicate: []byte("has:sha256"),
-		})
+		existingResults, err := db.Get(context.Background(), levelgraph.NewPattern(fileKey, "has:sha256", nil))
 		if err != nil {
 			fmt.Printf("  ⚠ Error querying %s: %v\n", path, err)
 			continue
@@ -506,7 +491,7 @@ func hashString(s string) string {
 
 func syncLinks(db *levelgraph.DB, fileKey, content string) {
 	// Remove old link predicates
-	results, _ := db.Get(context.Background(), &levelgraph.Pattern{Subject: []byte(fileKey)})
+	results, _ := db.Get(context.Background(), levelgraph.NewPattern(fileKey, nil, nil))
 	for _, t := range results {
 		pred := string(t.Predicate)
 		if strings.HasPrefix(pred, "text:links:") {
@@ -533,7 +518,7 @@ func syncLinks(db *levelgraph.DB, fileKey, content string) {
 
 func syncCodeBlocks(db *levelgraph.DB, fileKey, content string) {
 	// Remove old codeblock predicates
-	results, _ := db.Get(context.Background(), &levelgraph.Pattern{Subject: []byte(fileKey)})
+	results, _ := db.Get(context.Background(), levelgraph.NewPattern(fileKey, nil, nil))
 	for _, t := range results {
 		pred := string(t.Predicate)
 		if strings.HasPrefix(pred, "text:includes:") {
@@ -591,7 +576,7 @@ func cmdStats() {
 	}
 	defer db.Close()
 
-	results, err := db.Get(context.Background(), &levelgraph.Pattern{})
+	results, err := db.Get(context.Background(), levelgraph.NewPattern(nil, nil, nil))
 	if err != nil {
 		fmt.Printf("Error querying: %v\n", err)
 		os.Exit(1)
@@ -623,7 +608,7 @@ func cmdDump() {
 	}
 	defer db.Close()
 
-	results, err := db.Get(context.Background(), &levelgraph.Pattern{})
+	results, err := db.Get(context.Background(), levelgraph.NewPattern(nil, nil, nil))
 	if err != nil {
 		fmt.Printf("Error querying: %v\n", err)
 		os.Exit(1)

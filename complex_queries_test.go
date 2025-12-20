@@ -94,8 +94,8 @@ func TestComplexQuery_SharedInterests(t *testing.T) {
 	t.Run("find all pairs sharing an interest", func(t *testing.T) {
 		// Find all pairs of people who share at least one interest
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: graph.V("person1"), Predicate: []byte("likes"), Object: graph.V("interest")},
-			{Subject: graph.V("person2"), Predicate: []byte("likes"), Object: graph.V("interest")},
+			{Subject: graph.Binding("person1"), Predicate: graph.ExactString("likes"), Object: graph.Binding("interest")},
+			{Subject: graph.Binding("person2"), Predicate: graph.ExactString("likes"), Object: graph.Binding("interest")},
 		}, &SearchOptions{
 			Filter: func(s graph.Solution) bool {
 				// Exclude self-pairs
@@ -124,8 +124,8 @@ func TestComplexQuery_SharedInterests(t *testing.T) {
 
 	t.Run("find people who share alice's interests", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("likes"), Object: graph.V("interest")},
-			{Subject: graph.V("other"), Predicate: []byte("likes"), Object: graph.V("interest")},
+			{Subject: graph.ExactString("alice"), Predicate: graph.ExactString("likes"), Object: graph.Binding("interest")},
+			{Subject: graph.Binding("other"), Predicate: graph.ExactString("likes"), Object: graph.Binding("interest")},
 		}, &SearchOptions{
 			Filter: func(s graph.Solution) bool {
 				return string(s["other"]) != "alice"
@@ -160,7 +160,7 @@ func TestComplexQuery_FriendsOfFriends(t *testing.T) {
 
 	t.Run("direct friends of alice", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: graph.V("friend")},
+			{Subject: graph.ExactString("alice"), Predicate: graph.ExactString("knows"), Object: graph.Binding("friend")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -181,8 +181,8 @@ func TestComplexQuery_FriendsOfFriends(t *testing.T) {
 
 	t.Run("friends of friends of alice", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: graph.V("friend")},
-			{Subject: graph.V("friend"), Predicate: []byte("knows"), Object: graph.V("fof")},
+			{Subject: graph.ExactString("alice"), Predicate: graph.ExactString("knows"), Object: graph.Binding("friend")},
+			{Subject: graph.Binding("friend"), Predicate: graph.ExactString("knows"), Object: graph.Binding("fof")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -203,7 +203,7 @@ func TestComplexQuery_FriendsOfFriends(t *testing.T) {
 	t.Run("friends of friends excluding direct friends", func(t *testing.T) {
 		// First get direct friends
 		directResults, _ := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: graph.V("friend")},
+			{Subject: graph.ExactString("alice"), Predicate: graph.ExactString("knows"), Object: graph.Binding("friend")},
 		}, nil)
 		directFriends := make(map[string]bool)
 		for _, sol := range directResults {
@@ -212,8 +212,8 @@ func TestComplexQuery_FriendsOfFriends(t *testing.T) {
 
 		// Get friends of friends
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: graph.V("friend")},
-			{Subject: graph.V("friend"), Predicate: []byte("knows"), Object: graph.V("fof")},
+			{Subject: graph.ExactString("alice"), Predicate: graph.ExactString("knows"), Object: graph.Binding("friend")},
+			{Subject: graph.Binding("friend"), Predicate: graph.ExactString("knows"), Object: graph.Binding("fof")},
 		}, &SearchOptions{
 			Filter: func(s graph.Solution) bool {
 				fof := string(s["fof"])
@@ -241,9 +241,9 @@ func TestComplexQuery_FriendsOfFriends(t *testing.T) {
 
 	t.Run("three degrees of separation", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: graph.V("f1")},
-			{Subject: graph.V("f1"), Predicate: []byte("knows"), Object: graph.V("f2")},
-			{Subject: graph.V("f2"), Predicate: []byte("knows"), Object: graph.V("f3")},
+			{Subject: graph.ExactString("alice"), Predicate: graph.ExactString("knows"), Object: graph.Binding("f1")},
+			{Subject: graph.Binding("f1"), Predicate: graph.ExactString("knows"), Object: graph.Binding("f2")},
+			{Subject: graph.Binding("f2"), Predicate: graph.ExactString("knows"), Object: graph.Binding("f3")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -282,9 +282,9 @@ func TestComplexQuery_TriangleFinding(t *testing.T) {
 	db.Put(context.Background(), triples...)
 
 	results, err := db.Search(context.Background(), []*graph.Pattern{
-		{Subject: graph.V("x"), Predicate: []byte("connected"), Object: graph.V("y")},
-		{Subject: graph.V("y"), Predicate: []byte("connected"), Object: graph.V("z")},
-		{Subject: graph.V("z"), Predicate: []byte("connected"), Object: graph.V("x")},
+		{Subject: graph.Binding("x"), Predicate: graph.ExactString("connected"), Object: graph.Binding("y")},
+		{Subject: graph.Binding("y"), Predicate: graph.ExactString("connected"), Object: graph.Binding("z")},
+		{Subject: graph.Binding("z"), Predicate: graph.ExactString("connected"), Object: graph.Binding("x")},
 	}, nil)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
@@ -320,7 +320,7 @@ func TestComplexQuery_PathExistence(t *testing.T) {
 
 	t.Run("direct path exists", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: []byte("bob")},
+			{Subject: graph.ExactString("alice"), Predicate: graph.ExactString("knows"), Object: graph.ExactString("bob")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -332,8 +332,8 @@ func TestComplexQuery_PathExistence(t *testing.T) {
 
 	t.Run("two-hop path exists", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: []byte("alice"), Predicate: []byte("knows"), Object: graph.V("mid")},
-			{Subject: graph.V("mid"), Predicate: []byte("knows"), Object: []byte("diana")},
+			{Subject: graph.ExactString("alice"), Predicate: graph.ExactString("knows"), Object: graph.Binding("mid")},
+			{Subject: graph.Binding("mid"), Predicate: graph.ExactString("knows"), Object: graph.ExactString("diana")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -346,7 +346,7 @@ func TestComplexQuery_PathExistence(t *testing.T) {
 
 	t.Run("path does not exist", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: []byte("eve"), Predicate: []byte("knows"), Object: graph.V("anyone")},
+			{Subject: graph.ExactString("eve"), Predicate: graph.ExactString("knows"), Object: graph.Binding("anyone")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -366,9 +366,9 @@ func TestComplexQuery_MultiplePredicates(t *testing.T) {
 
 	t.Run("friends in same city", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: graph.V("person1"), Predicate: []byte("knows"), Object: graph.V("person2")},
-			{Subject: graph.V("person1"), Predicate: []byte("livesIn"), Object: graph.V("city")},
-			{Subject: graph.V("person2"), Predicate: []byte("livesIn"), Object: graph.V("city")},
+			{Subject: graph.Binding("person1"), Predicate: graph.ExactString("knows"), Object: graph.Binding("person2")},
+			{Subject: graph.Binding("person1"), Predicate: graph.ExactString("livesIn"), Object: graph.Binding("city")},
+			{Subject: graph.Binding("person2"), Predicate: graph.ExactString("livesIn"), Object: graph.Binding("city")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -390,9 +390,9 @@ func TestComplexQuery_MultiplePredicates(t *testing.T) {
 
 	t.Run("people who like what their friends like", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: graph.V("person"), Predicate: []byte("knows"), Object: graph.V("friend")},
-			{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("interest")},
-			{Subject: graph.V("friend"), Predicate: []byte("likes"), Object: graph.V("interest")},
+			{Subject: graph.Binding("person"), Predicate: graph.ExactString("knows"), Object: graph.Binding("friend")},
+			{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("interest")},
+			{Subject: graph.Binding("friend"), Predicate: graph.ExactString("likes"), Object: graph.Binding("interest")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -424,7 +424,7 @@ func TestComplexQuery_Aggregation(t *testing.T) {
 
 	t.Run("count friends per person", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: graph.V("person"), Predicate: []byte("knows"), Object: graph.V("friend")},
+			{Subject: graph.Binding("person"), Predicate: graph.ExactString("knows"), Object: graph.Binding("friend")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -451,7 +451,7 @@ func TestComplexQuery_Aggregation(t *testing.T) {
 
 	t.Run("count interests per person", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("interest")},
+			{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("interest")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -484,7 +484,7 @@ func TestComplexQuery_OptionalPatterns(t *testing.T) {
 	t.Run("find people with optional age", func(t *testing.T) {
 		// Get all people
 		peopleResults, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: graph.V("person"), Predicate: []byte("type"), Object: []byte("Person")},
+			{Subject: graph.Binding("person"), Predicate: graph.ExactString("type"), Object: graph.ExactString("Person")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -500,7 +500,7 @@ func TestComplexQuery_OptionalPatterns(t *testing.T) {
 		for _, sol := range peopleResults {
 			person := string(sol["person"])
 			ageResults, _ := db.Search(context.Background(), []*graph.Pattern{
-				{Subject: []byte(person), Predicate: []byte("age"), Object: graph.V("age")},
+				{Subject: graph.Exact([]byte(person)), Predicate: graph.ExactString("age"), Object: graph.Binding("age")},
 			}, nil)
 
 			pwa := PersonWithAge{Name: person}
@@ -532,7 +532,7 @@ func TestComplexQuery_Negation(t *testing.T) {
 	t.Run("find people who don't like hiking", func(t *testing.T) {
 		// Get all people
 		allPeople, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: graph.V("person"), Predicate: []byte("type"), Object: []byte("Person")},
+			{Subject: graph.Binding("person"), Predicate: graph.ExactString("type"), Object: graph.ExactString("Person")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -540,7 +540,7 @@ func TestComplexQuery_Negation(t *testing.T) {
 
 		// Get people who like hiking
 		hikingLovers, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: graph.V("person"), Predicate: []byte("likes"), Object: []byte("hiking")},
+			{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.ExactString("hiking")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -569,7 +569,7 @@ func TestComplexQuery_Negation(t *testing.T) {
 	t.Run("find people with no friends", func(t *testing.T) {
 		// Get all people
 		allPeople, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: graph.V("person"), Predicate: []byte("type"), Object: []byte("Person")},
+			{Subject: graph.Binding("person"), Predicate: graph.ExactString("type"), Object: graph.ExactString("Person")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -577,7 +577,7 @@ func TestComplexQuery_Negation(t *testing.T) {
 
 		// Get people who know someone
 		peopleWithFriends, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: graph.V("person"), Predicate: []byte("knows"), Object: graph.V("_")},
+			{Subject: graph.Binding("person"), Predicate: graph.ExactString("knows"), Object: graph.Binding("_")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -616,8 +616,8 @@ func TestComplexQuery_SelfJoin(t *testing.T) {
 		)
 
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: graph.V("a"), Predicate: []byte("knows"), Object: graph.V("b")},
-			{Subject: graph.V("b"), Predicate: []byte("knows"), Object: graph.V("a")},
+			{Subject: graph.Binding("a"), Predicate: graph.ExactString("knows"), Object: graph.Binding("b")},
+			{Subject: graph.Binding("b"), Predicate: graph.ExactString("knows"), Object: graph.Binding("a")},
 		}, &SearchOptions{
 			Filter: func(s graph.Solution) bool {
 				// Avoid duplicates (a,b) and (b,a)
@@ -653,7 +653,7 @@ func TestComplexQuery_PropertyPaths(t *testing.T) {
 
 	t.Run("direct subclass", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: graph.V("x"), Predicate: []byte("subclassOf"), Object: []byte("mammal")},
+			{Subject: graph.Binding("x"), Predicate: graph.ExactString("subclassOf"), Object: graph.ExactString("mammal")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -674,8 +674,8 @@ func TestComplexQuery_PropertyPaths(t *testing.T) {
 
 	t.Run("two-level subclass", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: graph.V("x"), Predicate: []byte("subclassOf"), Object: graph.V("y")},
-			{Subject: graph.V("y"), Predicate: []byte("subclassOf"), Object: []byte("animal")},
+			{Subject: graph.Binding("x"), Predicate: graph.ExactString("subclassOf"), Object: graph.Binding("y")},
+			{Subject: graph.Binding("y"), Predicate: graph.ExactString("subclassOf"), Object: graph.ExactString("animal")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -710,8 +710,8 @@ func TestComplexQuery_DiamondPattern(t *testing.T) {
 
 	// Find paths from a to d through different intermediaries
 	results, err := db.Search(context.Background(), []*graph.Pattern{
-		{Subject: []byte("a"), Predicate: []byte("edge"), Object: graph.V("mid")},
-		{Subject: graph.V("mid"), Predicate: []byte("edge"), Object: []byte("d")},
+		{Subject: graph.ExactString("a"), Predicate: graph.ExactString("edge"), Object: graph.Binding("mid")},
+		{Subject: graph.Binding("mid"), Predicate: graph.ExactString("edge"), Object: graph.ExactString("d")},
 	}, nil)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
@@ -739,7 +739,7 @@ func TestComplexQuery_StarPattern(t *testing.T) {
 
 	t.Run("get all attributes of a person", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: []byte("alice"), Predicate: graph.V("prop"), Object: graph.V("value")},
+			{Subject: graph.ExactString("alice"), Predicate: graph.Binding("prop"), Object: graph.Binding("value")},
 		}, nil)
 		if err != nil {
 			t.Fatalf("Search failed: %v", err)
@@ -790,8 +790,8 @@ func TestComplexQuery_LargeJoin(t *testing.T) {
 
 	// Query that produces a large intermediate result
 	results, err := db.Search(context.Background(), []*graph.Pattern{
-		{Subject: []byte("node"), Predicate: []byte("connected"), Object: graph.V("x")},
-		{Subject: graph.V("x"), Predicate: []byte("has"), Object: []byte("property")},
+		{Subject: graph.ExactString("node"), Predicate: graph.ExactString("connected"), Object: graph.Binding("x")},
+		{Subject: graph.Binding("x"), Predicate: graph.ExactString("has"), Object: graph.ExactString("property")},
 	}, &SearchOptions{Limit: 50})
 
 	if err != nil {
@@ -810,9 +810,9 @@ func TestComplexQuery_FilterChaining(t *testing.T) {
 
 	t.Run("multiple filter conditions", func(t *testing.T) {
 		results, err := db.Search(context.Background(), []*graph.Pattern{
-			{Subject: graph.V("person"), Predicate: []byte("type"), Object: []byte("Person")},
-			{Subject: graph.V("person"), Predicate: []byte("livesIn"), Object: graph.V("city")},
-			{Subject: graph.V("person"), Predicate: []byte("likes"), Object: graph.V("interest")},
+			{Subject: graph.Binding("person"), Predicate: graph.ExactString("type"), Object: graph.ExactString("Person")},
+			{Subject: graph.Binding("person"), Predicate: graph.ExactString("livesIn"), Object: graph.Binding("city")},
+			{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("interest")},
 		}, &SearchOptions{
 			Filter: func(s graph.Solution) bool {
 				city := string(s["city"])

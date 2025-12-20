@@ -96,11 +96,7 @@ func runGet(args []string) {
 		return []byte(s)
 	}
 
-	pattern := &levelgraph.Pattern{
-		Subject:   parsePart(remaining[0]),
-		Predicate: parsePart(remaining[1]),
-		Object:    parsePart(remaining[2]),
-	}
+	pattern := levelgraph.NewPattern(parsePart(remaining[0]), parsePart(remaining[1]), parsePart(remaining[2]))
 
 	triples, err := db.Get(context.Background(), pattern)
 	if err != nil {

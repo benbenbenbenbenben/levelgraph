@@ -64,7 +64,7 @@ func Example() {
 	}
 
 	// Query by subject
-	triples, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte("alice")})
+	triples, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.ExactString("alice")})
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
@@ -102,9 +102,9 @@ func Example_search() {
 	// Find everyone alice knows
 	results, err := db.Search(context.Background(), []*graph.Pattern{
 		{
-			Subject:   []byte("alice"),
-			Predicate: []byte("knows"),
-			Object:    graph.V("friend"),
+			Subject: graph.ExactString("alice"),
+			Predicate: graph.ExactString("knows"),
+			Object: graph.Binding("friend"),
 		},
 	}, nil)
 	if err != nil {

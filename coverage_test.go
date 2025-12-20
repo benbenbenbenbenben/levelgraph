@@ -167,19 +167,11 @@ func TestSearchIterator_Materialize_Extra(t *testing.T) {
 	db.Put(context.Background(), graph.NewTripleFromStrings("alice", "knows", "bob"))
 
 	patterns := []*graph.Pattern{
-		{
-			Subject:   []byte("alice"),
-			Predicate: []byte("knows"),
-			Object:    graph.V("friend"),
-		},
+		graph.NewPattern("alice", "knows", graph.V("friend")),
 	}
 
 	opts := &SearchOptions{
-		Materialized: &graph.Pattern{
-			Subject:   graph.V("friend"),
-			Predicate: []byte("is_known_by"),
-			Object:    []byte("alice"),
-		},
+		Materialized: graph.NewPattern(graph.V("friend"), "is_known_by", "alice"),
 	}
 
 	it, err := db.SearchIterator(context.Background(), patterns, opts)

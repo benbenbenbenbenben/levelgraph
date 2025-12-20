@@ -117,7 +117,7 @@ func BenchmarkGet(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		subject := fmt.Sprintf("subject%d", i%100)
-		_, err := db.Get(context.Background(), &graph.Pattern{Subject: []byte(subject)})
+		_, err := db.Get(context.Background(), &graph.Pattern{Subject: graph.Exact([]byte(subject))})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -143,7 +143,7 @@ func BenchmarkGetByPredicate(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		pred := predicates[i%len(predicates)]
-		_, err := db.Get(context.Background(), &graph.Pattern{Predicate: []byte(pred)})
+		_, err := db.Get(context.Background(), &graph.Pattern{Predicate: graph.Exact([]byte(pred))})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -170,11 +170,7 @@ func BenchmarkSearch(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := db.Search(context.Background(), []*graph.Pattern{
-			{
-				Subject:   graph.V("x"),
-				Predicate: []byte("friend"),
-				Object:    []byte("person50"),
-			},
+			graph.NewPattern(graph.V("x"), "friend", "person50"),
 		}, nil)
 		if err != nil {
 			b.Fatal(err)
@@ -203,16 +199,8 @@ func BenchmarkSearchJoin(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// Find friends of friends of person0
 		_, err := db.Search(context.Background(), []*graph.Pattern{
-			{
-				Subject:   []byte("person0"),
-				Predicate: []byte("friend"),
-				Object:    graph.V("x"),
-			},
-			{
-				Subject:   graph.V("x"),
-				Predicate: []byte("friend"),
-				Object:    graph.V("y"),
-			},
+			graph.NewPattern("person0", "friend", graph.V("x")),
+			graph.NewPattern(graph.V("x"), "friend", graph.V("y")),
 		}, nil)
 		if err != nil {
 			b.Fatal(err)
@@ -290,7 +278,7 @@ func BenchmarkIterator(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		iter, err := db.GetIterator(context.Background(), &graph.Pattern{Subject: []byte("subject")})
+		iter, err := db.GetIterator(context.Background(), &graph.Pattern{Subject: graph.ExactString("subject")})
 		if err != nil {
 			b.Fatal(err)
 		}

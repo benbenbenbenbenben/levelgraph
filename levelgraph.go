@@ -77,8 +77,18 @@ var (
 	NewTriple = graph.NewTriple
 	// NewTripleFromStrings refers to graph.NewTripleFromStrings
 	NewTripleFromStrings = graph.NewTripleFromStrings
+	// NewPattern refers to graph.NewPattern
+	NewPattern = graph.NewPattern
 	// V refers to graph.V
 	V = graph.V
+	// Wildcard refers to graph.Wildcard
+	Wildcard = graph.Wildcard
+	// Exact refers to graph.Exact
+	Exact = graph.Exact
+	// ExactString refers to graph.ExactString
+	ExactString = graph.ExactString
+	// Binding refers to graph.Binding
+	Binding = graph.Binding
 )
 
 var (

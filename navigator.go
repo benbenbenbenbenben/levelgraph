@@ -93,14 +93,9 @@ func (nav *Navigator) Go(vertex interface{}) *Navigator {
 // ArchOut follows an outgoing edge with the given predicate.
 // The current position becomes the subject, and navigates to the object.
 func (nav *Navigator) ArchOut(predicate interface{}) *Navigator {
-	pred := normalizeValue(predicate)
 	newVar := nav.nextVar()
 
-	pattern := &graph.Pattern{
-		Subject:   nav.lastElement,
-		Predicate: pred,
-		Object:    newVar,
-	}
+	pattern := graph.NewPattern(nav.lastElement, predicate, newVar)
 
 	nav.conditions = append(nav.conditions, pattern)
 	nav.lastElement = newVar
@@ -110,14 +105,9 @@ func (nav *Navigator) ArchOut(predicate interface{}) *Navigator {
 // ArchIn follows an incoming edge with the given predicate.
 // The current position becomes the object, and navigates to the subject.
 func (nav *Navigator) ArchIn(predicate interface{}) *Navigator {
-	pred := normalizeValue(predicate)
 	newVar := nav.nextVar()
 
-	pattern := &graph.Pattern{
-		Subject:   newVar,
-		Predicate: pred,
-		Object:    nav.lastElement,
-	}
+	pattern := graph.NewPattern(newVar, predicate, nav.lastElement)
 
 	nav.conditions = append(nav.conditions, pattern)
 	nav.lastElement = newVar

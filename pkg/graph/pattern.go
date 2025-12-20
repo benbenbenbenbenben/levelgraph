@@ -29,18 +29,96 @@ import (
 	"strconv"
 )
 
+// PatternValue represents a type-safe pattern field value.
+type PatternValue struct {
+	kind     patternValueKind
+	data     []byte
+	variable *Variable
+}
+
+type patternValueKind int
+
+const (
+	patternValueWildcard patternValueKind = iota
+	patternValueExact
+	patternValueBinding
+)
+
+// Wildcard creates a PatternValue that matches any value.
+func Wildcard() PatternValue {
+	return PatternValue{kind: patternValueWildcard}
+}
+
+// Exact creates a PatternValue that matches exactly the given bytes.
+func Exact(data []byte) PatternValue {
+	return PatternValue{kind: patternValueExact, data: data}
+}
+
+// ExactString creates a PatternValue that matches exactly the given string.
+func ExactString(s string) PatternValue {
+	return PatternValue{kind: patternValueExact, data: []byte(s)}
+}
+
+// Binding creates a PatternValue that binds the matched value to a named variable.
+func Binding(name string) PatternValue {
+	return PatternValue{kind: patternValueBinding, variable: V(name)}
+}
+
+// IsWildcard returns true if this value matches anything.
+func (pv PatternValue) IsWildcard() bool {
+	return pv.kind == patternValueWildcard
+}
+
+// IsExact returns true if this value matches a specific byte sequence.
+func (pv PatternValue) IsExact() bool {
+	return pv.kind == patternValueExact
+}
+
+// IsBinding returns true if this value captures into a variable.
+func (pv PatternValue) IsBinding() bool {
+	return pv.kind == patternValueBinding
+}
+
+// Data returns the exact data if this is an exact match, or nil otherwise.
+func (pv PatternValue) Data() []byte {
+	if pv.kind == patternValueExact {
+		return pv.data
+	}
+	return nil
+}
+
+// VariableName returns the variable name if this is a binding, or empty string otherwise.
+func (pv PatternValue) VariableName() string {
+	if pv.kind == patternValueBinding && pv.variable != nil {
+		return pv.variable.Name
+	}
+	return ""
+}
+
+// ToInterface converts the PatternValue to the interface{} representation
+// used by the original Pattern struct. This enables interoperability.
+func (pv PatternValue) ToInterface() interface{} {
+	switch pv.kind {
+	case patternValueWildcard:
+		return nil
+	case patternValueExact:
+		return pv.data
+	case patternValueBinding:
+		return pv.variable
+	default:
+		return nil
+	}
+}
+
 // Pattern represents a query pattern that can match triples.
-// Each field can be:
-//   - nil: matches any value (wildcard)
-//   - []byte: matches exactly that value
-//   - *Variable: binds matched value to the variable name
+// It uses PatternValue for type-safe field matching.
 type Pattern struct {
-	// Subject can be nil (wildcard), []byte (exact match), or *Variable
-	Subject interface{}
-	// Predicate can be nil (wildcard), []byte (exact match), or *Variable
-	Predicate interface{}
-	// Object can be nil (wildcard), []byte (exact match), or *Variable
-	Object interface{}
+	// Subject defines the match criteria for the triple subject
+	Subject PatternValue
+	// Predicate defines the match criteria for the triple predicate
+	Predicate PatternValue
+	// Object defines the match criteria for the triple object
+	Object PatternValue
 
 	// Filter is an optional function to filter results
 	Filter func(*Triple) bool
@@ -64,78 +142,74 @@ func NewPattern(subject, predicate, object interface{}) *Pattern {
 }
 
 // normalizePatternValue converts various input types to the internal representation.
-func normalizePatternValue(v interface{}) interface{} {
+func normalizePatternValue(v interface{}) PatternValue {
 	if v == nil {
-		return nil
+		return Wildcard()
 	}
 	switch val := v.(type) {
+	case PatternValue:
+		return val
 	case []byte:
 		if len(val) == 0 {
-			return nil
+			return Wildcard()
 		}
-		return val
+		return Exact(val)
 	case string:
 		if val == "" {
-			return nil
+			return Wildcard()
 		}
-		return []byte(val)
+		return ExactString(val)
 	case *Variable:
-		return val
+		return PatternValue{kind: patternValueBinding, variable: val}
 	case bool:
 		// Convert boolean to its string representation using strconv for clarity
-		return []byte(strconv.FormatBool(val))
+		return ExactString(strconv.FormatBool(val))
 	default:
-		return nil
+		return Wildcard()
 	}
 }
 
 // GetConcreteValue returns the concrete []byte value for a field, or nil if the field
 // is a wildcard or variable.
 func (p *Pattern) GetConcreteValue(field string) []byte {
-	var v interface{}
+	var pv PatternValue
 	switch field {
 	case "subject":
-		v = p.Subject
+		pv = p.Subject
 	case "predicate":
-		v = p.Predicate
+		pv = p.Predicate
 	case "object":
-		v = p.Object
+		pv = p.Object
 	default:
 		return nil
 	}
 
-	if v == nil {
-		return nil
-	}
-	if b, ok := v.([]byte); ok {
-		return b
-	}
-	return nil
+	return pv.Data()
 }
 
 // GetVariable returns the Variable for a field, or nil if it's not a variable.
 func (p *Pattern) GetVariable(field string) *Variable {
-	var v interface{}
+	var pv PatternValue
 	switch field {
 	case "subject":
-		v = p.Subject
+		pv = p.Subject
 	case "predicate":
-		v = p.Predicate
+		pv = p.Predicate
 	case "object":
-		v = p.Object
+		pv = p.Object
 	default:
 		return nil
 	}
 
-	if variable, ok := v.(*Variable); ok {
-		return variable
+	if pv.IsBinding() {
+		return pv.variable
 	}
 	return nil
 }
 
 // HasVariable returns true if any field contains a variable.
 func (p *Pattern) HasVariable() bool {
-	return IsVariable(p.Subject) || IsVariable(p.Predicate) || IsVariable(p.Object)
+	return p.Subject.IsBinding() || p.Predicate.IsBinding() || p.Object.IsBinding()
 }
 
 // ConcreteFields returns the names of fields that have concrete (non-variable, non-nil) values.
@@ -221,17 +295,17 @@ func (p *Pattern) UpdateWithSolution(solution Solution) *Pattern {
 	// Replace variables with bound values
 	if v := p.GetVariable("subject"); v != nil {
 		if val, ok := solution[v.Name]; ok {
-			newPattern.Subject = val
+			newPattern.Subject = Exact(val)
 		}
 	}
 	if v := p.GetVariable("predicate"); v != nil {
 		if val, ok := solution[v.Name]; ok {
-			newPattern.Predicate = val
+			newPattern.Predicate = Exact(val)
 		}
 	}
 	if v := p.GetVariable("object"); v != nil {
 		if val, ok := solution[v.Name]; ok {
-			newPattern.Object = val
+			newPattern.Object = Exact(val)
 		}
 	}
 

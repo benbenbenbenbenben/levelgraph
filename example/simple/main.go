@@ -40,9 +40,7 @@ func main() {
 	fmt.Println("Added: bob knows alice")
 
 	// Query by subject
-	results, err := db.Get(context.Background(), &levelgraph.Pattern{
-		Subject: []byte("alice"),
-	})
+	results, err := db.Get(context.Background(), levelgraph.NewPattern([]byte("alice"), nil, nil))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -130,7 +128,7 @@ func main() {
 	x := levelgraph.V("x")
 	y := levelgraph.V("y")
 	searchResults, err := db.Search(context.Background(), []*levelgraph.Pattern{
-		{Subject: x, Predicate: []byte("knows"), Object: y},
+		levelgraph.NewPattern(x, []byte("knows"), y),
 	}, nil)
 	if err != nil {
 		log.Fatal(err)
