@@ -25,9 +25,7 @@ db.Put(
     levelgraph.NewTripleFromStrings("bob", "knows", "alice"),
 )
 
-results, _ := db.Get(&levelgraph.Pattern{
-    Subject: []byte("alice"),
-})
+results, _ := db.Get(levelgraph.NewPattern("alice", nil, nil))
 ```
 
 ### 2. Journaling
@@ -77,6 +75,6 @@ Pattern matching with variables:
 x := levelgraph.V("x")
 y := levelgraph.V("y")
 results, _ := db.Search([]*levelgraph.Pattern{
-    {Subject: x, Predicate: []byte("knows"), Object: y},
+    levelgraph.NewPattern(x, "knows", y),
 }, nil)
 ```
