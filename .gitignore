@@ -44,5 +44,6 @@ test_output*.txt
 debug-*.json
 
 # Built binaries (keep .wasm for playground)
-levelgraph
-nolij
+# These are root-level binaries, not directories
+/levelgraph
+/nolij
