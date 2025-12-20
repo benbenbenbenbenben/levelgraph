@@ -541,7 +541,8 @@ func (db *DB) applyVectorFilter(ctx context.Context, solutions []graph.Solution,
 		uniqueValues := make(map[string][]graph.Solution)
 		for _, sol := range solutions {
 			if val, ok := sol[vf.Variable]; ok {
-				uniqueValues[string(val)] = append(uniqueValues[string(val)], sol)
+				key := string(val)
+				uniqueValues[key] = append(uniqueValues[key], sol)
 			}
 		}
 
