@@ -53,7 +53,7 @@ func Example() {
 	defer db.Close()
 
 	// Insert triples
-	err = db.Put(context.Background(), 
+	err = db.Put(context.Background(),
 		levelgraph.NewTripleFromStrings("alice", "knows", "bob"),
 		levelgraph.NewTripleFromStrings("bob", "knows", "charlie"),
 	)
@@ -92,7 +92,7 @@ func Example_search() {
 	defer db.Close()
 
 	// Build a social graph
-	db.Put(context.Background(), 
+	db.Put(context.Background(),
 		levelgraph.NewTripleFromStrings("alice", "knows", "bob"),
 		levelgraph.NewTripleFromStrings("bob", "knows", "charlie"),
 		levelgraph.NewTripleFromStrings("alice", "knows", "dave"),
@@ -132,7 +132,7 @@ func Example_navigator() {
 	defer db.Close()
 
 	// Build a graph
-	db.Put(context.Background(), 
+	db.Put(context.Background(),
 		levelgraph.NewTripleFromStrings("alice", "knows", "bob"),
 		levelgraph.NewTripleFromStrings("bob", "knows", "charlie"),
 	)

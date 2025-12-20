@@ -28,10 +28,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-
-	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/iterator"
-	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 var (
@@ -155,7 +151,7 @@ func (db *DB) GetFacet(ctx context.Context, facetType FacetType, value []byte, k
 
 	dbKey := genFacetKey(facetType, value, key)
 	result, err := db.store.Get(dbKey, nil)
-	if err == leveldb.ErrNotFound {
+	if err == ErrNotFound {
 		return nil, nil
 	}
 	return result, err
@@ -184,7 +180,7 @@ func (db *DB) GetFacets(ctx context.Context, facetType FacetType, value []byte) 
 	prefix := genFacetPrefix(facetType, value)
 	upperBound := append(prefix, 0xFF)
 
-	iter := db.store.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
+	iter := db.store.NewIterator(&Range{Start: prefix, Limit: upperBound}, nil)
 	defer iter.Release()
 
 	result := make(map[string][]byte)
@@ -275,7 +271,7 @@ func (db *DB) GetTripleFacet(ctx context.Context, triple *Triple, key []byte) ([
 
 	dbKey := genTripleFacetKey(triple, key)
 	result, err := db.store.Get(dbKey, nil)
-	if err == leveldb.ErrNotFound {
+	if err == ErrNotFound {
 		return nil, nil
 	}
 	return result, err
@@ -303,7 +299,7 @@ func (db *DB) GetTripleFacets(ctx context.Context, triple *Triple) (map[string][
 	prefix := genTripleFacetPrefix(triple)
 	upperBound := append(prefix, 0xFF)
 
-	iter := db.store.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
+	iter := db.store.NewIterator(&Range{Start: prefix, Limit: upperBound}, nil)
 	defer iter.Release()
 
 	result := make(map[string][]byte)
@@ -371,10 +367,10 @@ func (db *DB) DelAllTripleFacets(ctx context.Context, triple *Triple) error {
 	prefix := genTripleFacetPrefix(triple)
 	upperBound := append(prefix, 0xFF)
 
-	iter := db.store.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
+	iter := db.store.NewIterator(&Range{Start: prefix, Limit: upperBound}, nil)
 	defer iter.Release()
 
-	batch := new(leveldb.Batch)
+	batch := NewBatch()
 	for iter.Next() {
 		keyCopy := make([]byte, len(iter.Key()))
 		copy(keyCopy, iter.Key())
@@ -390,7 +386,7 @@ func (db *DB) DelAllTripleFacets(ctx context.Context, triple *Triple) error {
 
 // FacetIterator iterates over facets on a component or triple.
 type FacetIterator struct {
-	iter      iterator.Iterator
+	iter      Iterator
 	prefixLen int
 }
 
@@ -416,7 +412,7 @@ func (db *DB) GetFacetIterator(ctx context.Context, facetType FacetType, value [
 	prefix := genFacetPrefix(facetType, value)
 	upperBound := append(prefix, 0xFF)
 
-	iter := db.store.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
+	iter := db.store.NewIterator(&Range{Start: prefix, Limit: upperBound}, nil)
 	return &FacetIterator{
 		iter:      iter,
 		prefixLen: len(prefix),
@@ -445,7 +441,7 @@ func (db *DB) GetTripleFacetIterator(ctx context.Context, triple *Triple) (*Face
 	prefix := genTripleFacetPrefix(triple)
 	upperBound := append(prefix, 0xFF)
 
-	iter := db.store.NewIterator(&util.Range{Start: prefix, Limit: upperBound}, nil)
+	iter := db.store.NewIterator(&Range{Start: prefix, Limit: upperBound}, nil)
 	return &FacetIterator{
 		iter:      iter,
 		prefixLen: len(prefix),

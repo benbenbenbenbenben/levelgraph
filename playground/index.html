@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LevelGraph Playground</title>
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-tertiary: #0f3460;
+            --text-primary: #eee;
+            --text-secondary: #aaa;
+            --accent: #e94560;
+            --accent-light: #ff6b6b;
+            --success: #4ecca3;
+            --border: #2a2a4a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: var(--bg-secondary);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        header h1 span {
+            color: var(--text-primary);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        select, button {
+            font-family: inherit;
+            font-size: 0.875rem;
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        select:hover, button:hover {
+            border-color: var(--accent);
+        }
+
+        button.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        button.primary:hover {
+            background: var(--accent-light);
+            border-color: var(--accent-light);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background: var(--border);
+        }
+
+        .panel {
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            background: var(--bg-secondary);
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow: auto;
+        }
+
+        #editor {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: none;
+            padding: 1rem;
+            font-family: inherit;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            resize: none;
+            outline: none;
+        }
+
+        #output {
+            padding: 1rem;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .output-entry {
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .output-entry:last-child {
+            border-bottom: none;
+        }
+
+        .output-label {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .output-result {
+            color: var(--success);
+        }
+
+        .output-error {
+            color: var(--accent);
+        }
+
+        .output-info {
+            color: var(--text-secondary);
+        }
+
+        .status-bar {
+            background: var(--bg-secondary);
+            padding: 0.5rem 1rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            color: var(--text-secondary);
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+        }
+
+        .status-dot.ready {
+            background: var(--success);
+        }
+
+        .status-dot.loading {
+            background: var(--accent);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Triple visualization */
+        .triple-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .triple {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            padding: 0.25rem 0;
+        }
+
+        .triple-part {
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+        }
+
+        .triple-subject {
+            background: rgba(78, 204, 163, 0.2);
+            color: var(--success);
+        }
+
+        .triple-predicate {
+            background: rgba(233, 69, 96, 0.2);
+            color: var(--accent-light);
+        }
+
+        .triple-object {
+            background: rgba(100, 149, 237, 0.2);
+            color: #6495ED;
+        }
+
+        .triple-arrow {
+            color: var(--text-secondary);
+        }
+
+        @media (max-width: 768px) {
+            main {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Level<span>Graph</span> Playground</h1>
+        <div class="header-actions">
+            <select id="examples">
+                <option value="">Select Example...</option>
+                <option value="basic">Basic Operations</option>
+                <option value="social">Social Network</option>
+                <option value="search">Pattern Search</option>
+                <option value="navigation">Graph Navigation</option>
+            </select>
+            <button onclick="clearOutput()">Clear</button>
+            <button onclick="resetDB()">Reset DB</button>
+            <button class="primary" onclick="runCode()" id="runBtn" disabled>Run</button>
+        </div>
+    </header>
+
+    <main>
+        <div class="panel">
+            <div class="panel-header">Code</div>
+            <div class="panel-content">
+                <textarea id="editor" spellcheck="false">// Welcome to LevelGraph Playground!
+// This runs entirely in your browser using WebAssembly.
+
+// Insert some triples
+put([
+    { subject: "alice", predicate: "knows", object: "bob" },
+    { subject: "alice", predicate: "knows", object: "charlie" },
+    { subject: "bob", predicate: "knows", object: "diana" },
+    { subject: "charlie", predicate: "likes", object: "pizza" },
+    { subject: "diana", predicate: "likes", object: "pizza" }
+]);
+
+// Query all relationships where alice is the subject
+log("Who does alice know?");
+get({ subject: "alice" });
+
+// Find friends of friends using navigation
+log("\nFriends of alice's friends:");
+nav({ start: "alice", steps: [
+    { type: "out", predicate: "knows" },
+    { type: "out", predicate: "knows" }
+]});
+
+// Pattern search with variables (prefix with ?)
+log("\nWho likes pizza?");
+search([
+    { subject: "?person", predicate: "likes", object: "pizza" }
+]);
+</textarea>
+            </div>
+        </div>
+        <div class="panel">
+            <div class="panel-header">Output</div>
+            <div class="panel-content" id="output"></div>
+        </div>
+    </main>
+
+    <div class="status-bar">
+        <div class="status-indicator">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Loading WASM...</span>
+        </div>
+        <div>LevelGraph Go - In-Memory Graph Database</div>
+    </div>
+
+    <script src="wasm_exec.js"></script>
+    <script src="playground.js"></script>
+</body>
+</html>

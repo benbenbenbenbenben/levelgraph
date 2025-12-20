@@ -24,6 +24,7 @@ go get github.com/levelgraph/levelgraph
 package main
 
 import (
+    "context"
     "fmt"
     "log"
 
@@ -31,6 +32,8 @@ import (
 )
 
 func main() {
+    ctx := context.Background()
+
     // Open a database
     db, err := levelgraph.Open("./mydb")
     if err != nil {
@@ -40,12 +43,12 @@ func main() {
 
     // Insert a triple
     triple := levelgraph.NewTripleFromStrings("alice", "knows", "bob")
-    if err := db.Put(triple); err != nil {
+    if err := db.Put(ctx, triple); err != nil {
         log.Fatal(err)
     }
 
     // Query by subject
-    results, err := db.Get(&levelgraph.Pattern{
+    results, err := db.Get(ctx, &levelgraph.Pattern{
         Subject: []byte("alice"),
     })
     if err != nil {
@@ -98,14 +101,16 @@ triple := levelgraph.NewTripleFromStrings("alice", "knows", "bob")
 ### Put and Delete
 
 ```go
+ctx := context.Background()
+
 // Insert single triple
-err := db.Put(triple)
+err := db.Put(ctx, triple)
 
 // Insert multiple triples
-err := db.Put(t1, t2, t3)
+err := db.Put(ctx, t1, t2, t3)
 
 // Delete triple
-err := db.Del(triple)
+err := db.Del(ctx, triple)
 ```
 
 ### Get (Query)
@@ -113,26 +118,28 @@ err := db.Del(triple)
 Query triples using patterns:
 
 ```go
+ctx := context.Background()
+
 // Get by subject
-results, err := db.Get(&levelgraph.Pattern{
+results, err := db.Get(ctx, &levelgraph.Pattern{
     Subject: []byte("alice"),
 })
 
 // Get by predicate and object
-results, err := db.Get(&levelgraph.Pattern{
+results, err := db.Get(ctx, &levelgraph.Pattern{
     Predicate: []byte("knows"),
     Object:    []byte("bob"),
 })
 
 // With limit and offset
-results, err := db.Get(&levelgraph.Pattern{
+results, err := db.Get(ctx, &levelgraph.Pattern{
     Subject: []byte("alice"),
     Limit:   10,
     Offset:  5,
 })
 
 // With filter
-results, err := db.Get(&levelgraph.Pattern{
+results, err := db.Get(ctx, &levelgraph.Pattern{
     Subject: []byte("alice"),
     Filter: func(t *levelgraph.Triple) bool {
         return string(t.Object) != "eve"
@@ -140,7 +147,7 @@ results, err := db.Get(&levelgraph.Pattern{
 })
 
 // Reverse order
-results, err := db.Get(&levelgraph.Pattern{
+results, err := db.Get(ctx, &levelgraph.Pattern{
     Subject: []byte("alice"),
     Reverse: true,
 })
@@ -151,8 +158,10 @@ results, err := db.Get(&levelgraph.Pattern{
 Perform multi-pattern joins using variables:
 
 ```go
+ctx := context.Background()
+
 // Find friends of friends
-results, err := db.Search([]*levelgraph.Pattern{
+results, err := db.Search(ctx, []*levelgraph.Pattern{
     {
         Subject:   []byte("alice"),
         Predicate: []byte("knows"),
@@ -171,7 +180,7 @@ for _, sol := range results {
 }
 
 // With options
-results, err := db.Search(patterns, &levelgraph.SearchOptions{
+results, err := db.Search(ctx, patterns, &levelgraph.SearchOptions{
     Limit:  10,
     Offset: 0,
     Filter: func(s levelgraph.Solution) bool {
@@ -233,8 +242,10 @@ nav2 := nav.Clone().ArchOut("follows")
 For large result sets, use iterators:
 
 ```go
+ctx := context.Background()
+
 // Triple iterator
-iter, err := db.GetIterator(&levelgraph.Pattern{Subject: []byte("alice")})
+iter, err := db.GetIterator(ctx, &levelgraph.Pattern{Subject: []byte("alice")})
 if err != nil {
     log.Fatal(err)
 }
@@ -249,7 +260,7 @@ for iter.Next() {
 }
 
 // Search iterator
-iter, err := db.SearchIterator(patterns, nil)
+iter, err := db.SearchIterator(ctx, patterns, nil)
 if err != nil {
     log.Fatal(err)
 }
@@ -308,6 +319,77 @@ facets, err := db.GetTripleFacets(triple)
 err = db.DelTripleFacet(triple, []byte("since"))
 err = db.DelAllTripleFacets(triple)
 ```
+
+## Web Playground (WASM)
+
+LevelGraph can be compiled to WebAssembly and run directly in the browser. A playground is included for interactive experimentation.
+
+### Building the Playground
+
+```bash
+# Build WASM module and start local server
+make serve
+```
+
+Then open http://localhost:8080 in your browser.
+
+### Makefile Targets
+
+```bash
+make wasm        # Build WASM module only
+make playground  # Build WASM + copy wasm_exec.js
+make serve       # Build and start local server
+```
+
+### WASM API
+
+When loaded in a browser, the following JavaScript API is available:
+
+```javascript
+// Insert triples
+levelgraph.put([
+    { subject: "alice", predicate: "knows", object: "bob" },
+    { subject: "bob", predicate: "knows", object: "charlie" }
+]);
+
+// Delete triples
+levelgraph.del([
+    { subject: "alice", predicate: "knows", object: "bob" }
+]);
+
+// Query by pattern (use null for wildcards)
+const results = levelgraph.get({ subject: "alice", predicate: null, object: null });
+
+// Search with variables (prefix with ?)
+const friends = levelgraph.search([
+    { subject: "alice", predicate: "knows", object: "?friend" },
+    { subject: "?friend", predicate: "knows", object: "?fof" }
+]);
+
+// Search with filters
+const results = levelgraph.search([
+    { subject: "?person", predicate: "knows", object: "?other" }
+], {
+    notEqual: [{ var: "person", var2: "other" }]  // person != other
+});
+
+// Navigation API
+const nav = levelgraph.nav({
+    start: "alice",
+    steps: [
+        { direction: "out", predicate: "knows", as: "friend" },
+        { direction: "out", predicate: "likes", as: "liked" }
+    ]
+});
+
+// Reset database
+levelgraph.reset();
+
+// Check if ready
+if (levelgraph.isReady()) { /* ... */ }
+```
+
+The playground includes several example presets demonstrating these features.
 
 ## Binary Data Support
 

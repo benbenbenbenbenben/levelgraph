@@ -49,6 +49,11 @@
 //	    levelgraph.WithJournal(),
 //	    levelgraph.WithFacets(),
 //	)
+//
+// For WebAssembly builds, use OpenWithStore with NewMemStore:
+//
+//	store := levelgraph.NewMemStore()
+//	db := levelgraph.OpenWithStore(store)
 package levelgraph
 
 import (
@@ -57,11 +62,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-
-	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/iterator"
-	"github.com/syndtr/goleveldb/leveldb/opt"
-	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 var (
@@ -73,11 +73,11 @@ var (
 
 // KVStore defines the interface for the underlying key-value store.
 type KVStore interface {
-	Get(key []byte, ro *opt.ReadOptions) (value []byte, err error)
-	Put(key, value []byte, wo *opt.WriteOptions) error
-	Delete(key []byte, wo *opt.WriteOptions) error
-	Write(batch *leveldb.Batch, wo *opt.WriteOptions) error
-	NewIterator(slice *util.Range, ro *opt.ReadOptions) iterator.Iterator
+	Get(key []byte, ro *ReadOptions) (value []byte, err error)
+	Put(key, value []byte, wo *WriteOptions) error
+	Delete(key []byte, wo *WriteOptions) error
+	Write(batch *Batch, wo *WriteOptions) error
+	NewIterator(slice *Range, ro *ReadOptions) Iterator
 	Close() error
 }
 
@@ -91,19 +91,20 @@ type DB struct {
 }
 
 // Open opens or creates a LevelGraph database at the specified path.
+// For WebAssembly builds, use OpenWithStore with NewMemStore instead.
 func Open(path string, opts ...Option) (*DB, error) {
 	if path == "" {
 		return nil, errors.New("levelgraph: path is required")
 	}
 	options := applyOptions(opts...)
 
-	ldb, err := leveldb.OpenFile(path, &opt.Options{})
+	store, err := openLevelDB(path)
 	if err != nil {
 		return nil, fmt.Errorf("levelgraph: open %s: %w", path, err)
 	}
 
 	return &DB{
-		store:   ldb,
+		store:   store,
 		options: options,
 	}, nil
 }
@@ -189,7 +190,7 @@ func (db *DB) Put(ctx context.Context, triples ...*Triple) error {
 	default:
 	}
 
-	batch := new(leveldb.Batch)
+	batch := NewBatch()
 
 	for _, triple := range triples {
 		if err := validateTriple(triple); err != nil {
@@ -238,7 +239,7 @@ func (db *DB) Del(ctx context.Context, triples ...*Triple) error {
 	default:
 	}
 
-	batch := new(leveldb.Batch)
+	batch := NewBatch()
 
 	for _, triple := range triples {
 		if err := validateTriple(triple); err != nil {
@@ -338,8 +339,7 @@ func (db *DB) getIteratorUnlocked(pattern *Pattern) (*TripleIterator, error) {
 	startKey := GenKeyFromPattern(index, pattern)
 	endKey := GenKeyWithUpperBound(index, pattern)
 
-	var iter iterator.Iterator
-	iter = db.store.NewIterator(&util.Range{Start: startKey, Limit: endKey}, nil)
+	iter := db.store.NewIterator(&Range{Start: startKey, Limit: endKey}, nil)
 
 	// Apply default limit if pattern has no limit and a default is configured
 	limit := pattern.Limit
@@ -403,7 +403,7 @@ func validateTriple(triple *Triple) error {
 
 // TripleIterator iterates over triples from a query.
 type TripleIterator struct {
-	iter         iterator.Iterator
+	iter         Iterator
 	pattern      *Pattern
 	offset       int
 	limit        int

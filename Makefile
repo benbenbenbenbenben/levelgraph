@@ -1,4 +1,4 @@
-.PHONY: test bench bench-update lint fmt vet clean examples check
+.PHONY: test bench bench-update lint fmt vet clean examples check wasm playground serve
 
 # Run tests with race detector
 test:
@@ -47,3 +47,18 @@ examples:
 
 # Run all checks before commit
 check: fmt vet test
+
+# Build WebAssembly module
+wasm:
+	GOOS=js GOARCH=wasm go build -o playground/levelgraph.wasm ./playground/wasm/
+
+# Build and update playground (including wasm_exec.js)
+playground: wasm
+	@cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" playground/
+	@echo "Playground built. Run 'make serve' to start local server."
+
+# Serve playground locally for testing
+serve: playground
+	@echo "Starting local server at http://localhost:8080"
+	@echo "Press Ctrl+C to stop"
+	@cd playground && python3 -m http.server 8080

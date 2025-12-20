@@ -30,10 +30,6 @@ import (
 	"encoding/json"
 	"sync/atomic"
 	"time"
-
-	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/iterator"
-	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 var (
@@ -69,7 +65,7 @@ func (db *DB) genJournalKey(ts time.Time) []byte {
 }
 
 // recordJournalEntry adds a journal entry to the batch.
-func (db *DB) recordJournalEntry(batch *leveldb.Batch, op string, triple *Triple) error {
+func (db *DB) recordJournalEntry(batch *Batch, op string, triple *Triple) error {
 	if !db.options.JournalEnabled {
 		return nil
 	}
@@ -94,7 +90,7 @@ func (db *DB) recordJournalEntry(batch *leveldb.Batch, op string, triple *Triple
 // JournalIterator iterates over journal entries.
 type JournalIterator struct {
 	db     *DB
-	iter   iterator.Iterator
+	iter   Iterator
 	before time.Time
 }
 
@@ -114,7 +110,7 @@ func (db *DB) GetJournalIterator(ctx context.Context, before time.Time) (*Journa
 	default:
 	}
 
-	var rng *util.Range
+	var rng *Range
 	if before.IsZero() {
 		// All entries
 		upperBound := make([]byte, len(journalPrefix)+16)
@@ -122,13 +118,13 @@ func (db *DB) GetJournalIterator(ctx context.Context, before time.Time) (*Journa
 		for i := len(journalPrefix); i < len(upperBound); i++ {
 			upperBound[i] = 0xFF
 		}
-		rng = &util.Range{Start: journalPrefix, Limit: upperBound}
+		rng = &Range{Start: journalPrefix, Limit: upperBound}
 	} else {
 		// Only entries before the given time
 		upperKey := make([]byte, len(journalPrefix)+8)
 		copy(upperKey, journalPrefix)
 		binary.BigEndian.PutUint64(upperKey[len(journalPrefix):], uint64(before.UnixNano()))
-		rng = &util.Range{Start: journalPrefix, Limit: upperKey}
+		rng = &Range{Start: journalPrefix, Limit: upperKey}
 	}
 
 	iter := db.store.NewIterator(rng, nil)
@@ -217,13 +213,13 @@ func (db *DB) Trim(ctx context.Context, before time.Time) (int, error) {
 	copy(upperKey, journalPrefix)
 	binary.BigEndian.PutUint64(upperKey[len(journalPrefix):], uint64(before.UnixNano()))
 
-	iter := db.store.NewIterator(&util.Range{
+	iter := db.store.NewIterator(&Range{
 		Start: journalPrefix,
 		Limit: upperKey,
 	}, nil)
 	defer iter.Release()
 
-	batch := new(leveldb.Batch)
+	batch := NewBatch()
 	count := 0
 
 	for iter.Next() {
@@ -269,14 +265,14 @@ func (db *DB) TrimAndExport(ctx context.Context, before time.Time, targetDB *DB)
 	copy(upperKey, journalPrefix)
 	binary.BigEndian.PutUint64(upperKey[len(journalPrefix):], uint64(before.UnixNano()))
 
-	iter := db.store.NewIterator(&util.Range{
+	iter := db.store.NewIterator(&Range{
 		Start: journalPrefix,
 		Limit: upperKey,
 	}, nil)
 	defer iter.Release()
 
-	deleteBatch := new(leveldb.Batch)
-	exportBatch := new(leveldb.Batch)
+	deleteBatch := NewBatch()
+	exportBatch := NewBatch()
 	count := 0
 
 	for iter.Next() {
@@ -346,7 +342,7 @@ func (db *DB) ReplayJournal(ctx context.Context, after time.Time, targetDB *DB) 
 		endKey[i] = 0xFF
 	}
 
-	iter := db.store.NewIterator(&util.Range{
+	iter := db.store.NewIterator(&Range{
 		Start: startKey,
 		Limit: endKey,
 	}, nil)
@@ -400,7 +396,7 @@ func (db *DB) JournalCount(ctx context.Context, before time.Time) (int, error) {
 	default:
 	}
 
-	var rng *util.Range
+	var rng *Range
 	if before.IsZero() {
 		// All entries
 		upperBound := make([]byte, len(journalPrefix)+16)
@@ -408,13 +404,13 @@ func (db *DB) JournalCount(ctx context.Context, before time.Time) (int, error) {
 		for i := len(journalPrefix); i < len(upperBound); i++ {
 			upperBound[i] = 0xFF
 		}
-		rng = &util.Range{Start: journalPrefix, Limit: upperBound}
+		rng = &Range{Start: journalPrefix, Limit: upperBound}
 	} else {
 		// Only entries before the given time
 		upperKey := make([]byte, len(journalPrefix)+8)
 		copy(upperKey, journalPrefix)
 		binary.BigEndian.PutUint64(upperKey[len(journalPrefix):], uint64(before.UnixNano()))
-		rng = &util.Range{Start: journalPrefix, Limit: upperKey}
+		rng = &Range{Start: journalPrefix, Limit: upperKey}
 	}
 
 	iter := db.store.NewIterator(rng, nil)

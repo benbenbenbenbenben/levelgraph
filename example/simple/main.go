@@ -29,7 +29,7 @@ func main() {
 	fmt.Println("=== Basic Triple Operations ===")
 
 	// Add some simple triples
-	err = db.Put(context.Background(), 
+	err = db.Put(context.Background(),
 		levelgraph.NewTripleFromStrings("alice", "knows", "bob"),
 		levelgraph.NewTripleFromStrings("bob", "knows", "alice"),
 	)
@@ -104,7 +104,7 @@ func main() {
 	fmt.Println("\n=== Navigator API ===")
 
 	// Add more data for navigation
-	db.Put(context.Background(), 
+	db.Put(context.Background(),
 		levelgraph.NewTripleFromStrings("bob", "knows", "charlie"),
 		levelgraph.NewTripleFromStrings("charlie", "knows", "diana"),
 	)
