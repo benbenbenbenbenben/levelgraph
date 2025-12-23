@@ -49,3 +49,4 @@ debug-*.json
 /levelgraph.wasm
 /nolij
 /wasm
+/simple
