@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/benbenbenbenbenben/levelgraph"
 	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
@@ -152,4 +153,93 @@ func Example_navigator() {
 		fmt.Printf("Friend of friend: %s\n", solutions[0]["fof"])
 	}
 	// Output: Friend of friend: charlie
+}
+
+// Example_facets demonstrates attaching metadata to triples and their components.
+func Example_facets() {
+	dir, err := os.MkdirTemp("", "levelgraph-facets")
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer os.RemoveAll(dir)
+
+	// Open with facets enabled
+	db, err := levelgraph.Open(filepath.Join(dir, "facets.db"), levelgraph.WithFacets())
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Add a triple
+	triple := graph.NewTripleFromStrings("alice", "knows", "bob")
+	db.Put(ctx, triple)
+
+	// Add facet to the triple itself (relationship metadata)
+	err = db.SetTripleFacet(ctx, triple, []byte("since"), []byte("2020"))
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	// Add facet to a subject (entity metadata)
+	err = db.SetFacet(ctx, levelgraph.FacetSubject, []byte("alice"), []byte("age"), []byte("30"))
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	// Retrieve the facets
+	since, err := db.GetTripleFacet(ctx, triple, []byte("since"))
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	age, err := db.GetFacet(ctx, levelgraph.FacetSubject, []byte("alice"), []byte("age"))
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	fmt.Printf("Alice (age %s) knows Bob since %s\n", age, since)
+	// Output: Alice (age 30) knows Bob since 2020
+}
+
+// Example_journal demonstrates journaling for audit trails.
+func Example_journal() {
+	dir, err := os.MkdirTemp("", "levelgraph-journal")
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer os.RemoveAll(dir)
+
+	// Open with journaling enabled
+	db, err := levelgraph.Open(filepath.Join(dir, "journal.db"), levelgraph.WithJournal())
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Perform some operations
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "knows", "bob"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "knows", "charlie"))
+	db.Del(ctx, graph.NewTripleFromStrings("alice", "knows", "bob"))
+
+	// Get all journal entries (use zero time to get all)
+	count, err := db.JournalCount(ctx, time.Time{})
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	fmt.Printf("Journal has %d entries\n", count)
+	// Output: Journal has 3 entries
 }
