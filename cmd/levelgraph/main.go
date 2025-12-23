@@ -28,7 +28,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"io"
 	"os"
 	"strings"
 
@@ -36,32 +36,57 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		printUsage()
-		os.Exit(1)
+	cli := &CLI{
+		Out: os.Stdout,
+		Err: os.Stderr,
 	}
-
-	cmd := os.Args[1]
-	args := os.Args[2:]
-
-	switch cmd {
-	case "put":
-		runPut(args)
-	case "get":
-		runGet(args)
-	case "dump":
-		runDump(args)
-	case "load":
-		runLoad(args)
-	default:
-		fmt.Printf("Unknown command: %s\n", cmd)
-		printUsage()
-		os.Exit(1)
-	}
+	os.Exit(cli.Run(os.Args[1:]))
 }
 
-func printUsage() {
-	fmt.Print(`LevelGraph CLI
+// CLI encapsulates the command-line interface for LevelGraph.
+type CLI struct {
+	Out io.Writer // Output writer (default: os.Stdout)
+	Err io.Writer // Error writer (default: os.Stderr)
+}
+
+// Run executes the CLI with the given arguments and returns an exit code.
+func (c *CLI) Run(args []string) int {
+	if len(args) < 1 {
+		c.printUsage()
+		return 1
+	}
+
+	cmd := args[0]
+	cmdArgs := args[1:]
+
+	var err error
+	switch cmd {
+	case "put":
+		err = c.runPut(cmdArgs)
+	case "get":
+		err = c.runGet(cmdArgs)
+	case "dump":
+		err = c.runDump(cmdArgs)
+	case "load":
+		err = c.runLoad(cmdArgs)
+	case "help", "-h", "--help":
+		c.printUsage()
+		return 0
+	default:
+		fmt.Fprintf(c.Err, "Unknown command: %s\n", cmd)
+		c.printUsage()
+		return 1
+	}
+
+	if err != nil {
+		fmt.Fprintf(c.Err, "Error: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func (c *CLI) printUsage() {
+	fmt.Fprint(c.Out, `LevelGraph CLI
 
 Usage:
   levelgraph <command> [arguments]
@@ -71,45 +96,58 @@ Commands:
   get <subject> <predicate> <object>   Get triples (use '*' as wildcard)
   dump                                 Dump all triples
   load <file>                          Load triples from a file (N-Triples format)
+  help                                 Show this help message
 
 Global Flags:
   -db <path>                           Path to database (default: levelgraph.db)
 `)
 }
 
-func parseFlags(args []string) (*levelgraph.DB, []string) {
-	fs := flag.NewFlagSet("levelgraph", flag.ExitOnError)
+// parseFlags parses command-line flags and opens the database.
+func (c *CLI) parseFlags(args []string) (*levelgraph.DB, []string, error) {
+	fs := flag.NewFlagSet("levelgraph", flag.ContinueOnError)
+	fs.SetOutput(c.Err)
 	dbPath := fs.String("db", "levelgraph.db", "Path to database")
-	fs.Parse(args)
+
+	if err := fs.Parse(args); err != nil {
+		return nil, nil, err
+	}
 
 	db, err := levelgraph.Open(*dbPath)
 	if err != nil {
-		log.Fatalf("Failed to open database: %v", err)
+		return nil, nil, fmt.Errorf("failed to open database: %w", err)
 	}
-	return db, fs.Args()
+	return db, fs.Args(), nil
 }
 
-func runPut(args []string) {
-	db, remaining := parseFlags(args)
-	defer db.Close()
-
-	if len(remaining) != 3 {
-		log.Fatal("Usage: levelgraph put <subject> <predicate> <object>")
-	}
-
-	err := db.Put(context.Background(), levelgraph.NewTripleFromStrings(remaining[0], remaining[1], remaining[2]))
+func (c *CLI) runPut(args []string) error {
+	db, remaining, err := c.parseFlags(args)
 	if err != nil {
-		log.Fatalf("Failed to put triple: %v", err)
+		return err
 	}
-	fmt.Println("Triple added.")
-}
-
-func runGet(args []string) {
-	db, remaining := parseFlags(args)
 	defer db.Close()
 
 	if len(remaining) != 3 {
-		log.Fatal("Usage: levelgraph get <subject> <predicate> <object> (use '*' for wildcard)")
+		return fmt.Errorf("usage: levelgraph put <subject> <predicate> <object>")
+	}
+
+	err = db.Put(context.Background(), levelgraph.NewTripleFromStrings(remaining[0], remaining[1], remaining[2]))
+	if err != nil {
+		return fmt.Errorf("failed to put triple: %w", err)
+	}
+	fmt.Fprintln(c.Out, "Triple added.")
+	return nil
+}
+
+func (c *CLI) runGet(args []string) error {
+	db, remaining, err := c.parseFlags(args)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	if len(remaining) != 3 {
+		return fmt.Errorf("usage: levelgraph get <subject> <predicate> <object> (use '*' for wildcard)")
 	}
 
 	parsePart := func(s string) []byte {
@@ -123,50 +161,73 @@ func runGet(args []string) {
 
 	triples, err := db.Get(context.Background(), pattern)
 	if err != nil {
-		log.Fatalf("Failed to get triples: %v", err)
+		return fmt.Errorf("failed to get triples: %w", err)
 	}
 
 	for _, t := range triples {
-		fmt.Printf("%s %s %s\n", t.Subject, t.Predicate, t.Object)
+		fmt.Fprintf(c.Out, "%s %s %s\n", t.Subject, t.Predicate, t.Object)
 	}
+	return nil
 }
 
-func runDump(args []string) {
-	db, _ := parseFlags(args)
+func (c *CLI) runDump(args []string) error {
+	db, _, err := c.parseFlags(args)
+	if err != nil {
+		return err
+	}
 	defer db.Close()
 
 	triples, err := db.Get(context.Background(), &levelgraph.Pattern{})
 	if err != nil {
-		log.Fatalf("Failed to dump triples: %v", err)
+		return fmt.Errorf("failed to dump triples: %w", err)
 	}
 
 	for _, t := range triples {
-		fmt.Printf("%s %s %s\n", t.Subject, t.Predicate, t.Object)
+		fmt.Fprintf(c.Out, "%s %s %s\n", t.Subject, t.Predicate, t.Object)
 	}
+	return nil
 }
 
-func runLoad(args []string) {
-	db, remaining := parseFlags(args)
+func (c *CLI) runLoad(args []string) error {
+	db, remaining, err := c.parseFlags(args)
+	if err != nil {
+		return err
+	}
 	defer db.Close()
 
 	if len(remaining) != 1 {
-		log.Fatal("Usage: levelgraph load <file>")
+		return fmt.Errorf("usage: levelgraph load <file>")
 	}
 
 	filePath := remaining[0]
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Fatalf("Failed to open file: %v", err)
+		return fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
+	count, err := c.loadTriples(db, file)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(c.Out, "Loaded %d triples.\n", count)
+	return nil
+}
+
+// loadTriples loads triples from an N-Triples format reader into the database.
+func (c *CLI) loadTriples(db *levelgraph.DB, r io.Reader) (int, error) {
+	scanner := bufio.NewScanner(r)
 	count := 0
+	lineNum := 0
+
 	for scanner.Scan() {
+		lineNum++
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+
 		parts := strings.Fields(line)
 		if len(parts) >= 3 {
 			// Basic N-Triples parsing (simplified)
@@ -177,7 +238,7 @@ func runLoad(args []string) {
 
 			err := db.Put(context.Background(), levelgraph.NewTripleFromStrings(sub, pred, obj))
 			if err != nil {
-				log.Printf("Failed to put triple '%s': %v", line, err)
+				fmt.Fprintf(c.Err, "Warning: line %d: failed to put triple: %v\n", lineNum, err)
 			} else {
 				count++
 			}
@@ -185,8 +246,8 @@ func runLoad(args []string) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Fatalf("Error reading file: %v", err)
+		return count, fmt.Errorf("error reading input: %w", err)
 	}
 
-	fmt.Printf("Loaded %d triples.\n", count)
+	return count, nil
 }
