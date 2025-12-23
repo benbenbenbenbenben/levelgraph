@@ -33,6 +33,7 @@ import (
 
 	"github.com/benbenbenbenbenben/levelgraph"
 	"github.com/benbenbenbenbenben/levelgraph/pkg/graph"
+	"github.com/benbenbenbenbenben/levelgraph/vector"
 )
 
 // Example demonstrates basic LevelGraph usage: opening a database,
@@ -293,4 +294,60 @@ func Example_searchJoin() {
 		fmt.Printf("Alice and Bob both like: %s\n", results[0]["interest"])
 	}
 	// Output: Alice and Bob both like: tennis
+}
+
+// Example_vectorSearch demonstrates semantic similarity search using vector embeddings.
+// This enables "fuzzy" queries that find results based on meaning rather than exact matches.
+func Example_vectorSearch() {
+	dir, err := os.MkdirTemp("", "levelgraph-example-vector")
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer os.RemoveAll(dir)
+
+	// Create a vector index (3 dimensions for this simple example)
+	vectorIndex := vector.NewFlatIndex(3)
+
+	db, err := levelgraph.Open(filepath.Join(dir, "vector.db"),
+		levelgraph.WithVectors(vectorIndex),
+	)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Add triples about sports
+	db.Put(ctx,
+		graph.NewTripleFromStrings("alice", "likes", "tennis"),
+		graph.NewTripleFromStrings("bob", "likes", "badminton"),
+		graph.NewTripleFromStrings("charlie", "likes", "football"),
+	)
+
+	// Associate vectors with sport objects (simulated embeddings)
+	// In practice, these would come from an embedding model
+	// Tennis and badminton are similar (both racket sports)
+	db.SetObjectVector(ctx, []byte("tennis"), []float32{0.9, 0.1, 0.0})
+	db.SetObjectVector(ctx, []byte("badminton"), []float32{0.85, 0.15, 0.0})
+	db.SetObjectVector(ctx, []byte("football"), []float32{0.1, 0.9, 0.0})
+
+	// Search for sports similar to tennis
+	results, err := db.SearchSimilarObjects(ctx, []float32{0.9, 0.1, 0.0}, 3)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	fmt.Println("Sports similar to tennis:")
+	for _, match := range results {
+		fmt.Printf("  %s (score: %.2f)\n", match.Parts[0], match.Score)
+	}
+	// Output:
+	// Sports similar to tennis:
+	//   tennis (score: 1.00)
+	//   badminton (score: 1.00)
+	//   football (score: 0.61)
 }
