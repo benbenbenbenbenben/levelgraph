@@ -46,5 +46,6 @@ debug-*.json
 # Built binaries (keep .wasm for playground)
 # These are root-level binaries, not directories
 /levelgraph
+/levelgraph.wasm
 /nolij
 /wasm
