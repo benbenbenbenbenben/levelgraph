@@ -16,3 +16,8 @@ module github.com/benbenbenbenbenben/luxical-one-go@latest found (v0.0.0-2025122
 1. Remove the replace directive
 2. Run `go mod tidy`
 3. Test builds
+
+## Notes
+
+---
+**Autopilot Note (2025-12-23)**: This item is BLOCKED and requires manual intervention. The external `luxical-one-go` GitHub repo needs Go package files pushed to its root level. This cannot be done from within this repository.
