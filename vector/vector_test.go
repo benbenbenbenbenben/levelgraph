@@ -136,6 +136,71 @@ func TestEuclidean(t *testing.T) {
 	}
 }
 
+func TestEuclideanMismatchedDimensions(t *testing.T) {
+	a := []float32{1, 2}
+	b := []float32{1, 2, 3}
+	dist := Euclidean(a, b)
+	if dist != float32(math.MaxFloat32) {
+		t.Errorf("Euclidean() with mismatched dims = %v, want MaxFloat32", dist)
+	}
+}
+
+func TestDotProduct(t *testing.T) {
+	tests := []struct {
+		name     string
+		a, b     []float32
+		expected float32
+		epsilon  float32
+	}{
+		{
+			name:     "unit vectors same direction",
+			a:        []float32{1, 0, 0},
+			b:        []float32{1, 0, 0},
+			expected: -1.0, // Negated for distance
+			epsilon:  0.0001,
+		},
+		{
+			name:     "unit vectors opposite direction",
+			a:        []float32{1, 0, 0},
+			b:        []float32{-1, 0, 0},
+			expected: 1.0, // Negated for distance
+			epsilon:  0.0001,
+		},
+		{
+			name:     "orthogonal vectors",
+			a:        []float32{1, 0, 0},
+			b:        []float32{0, 1, 0},
+			expected: 0.0,
+			epsilon:  0.0001,
+		},
+		{
+			name:     "scaled vectors",
+			a:        []float32{2, 3},
+			b:        []float32{4, 5},
+			expected: -23.0, // -(2*4 + 3*5) = -23
+			epsilon:  0.0001,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := DotProduct(tt.a, tt.b)
+			if math.Abs(float64(result-tt.expected)) > float64(tt.epsilon) {
+				t.Errorf("DotProduct() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestDotProductMismatchedDimensions(t *testing.T) {
+	a := []float32{1, 2}
+	b := []float32{1, 2, 3}
+	result := DotProduct(a, b)
+	if result != float32(math.MaxFloat32) {
+		t.Errorf("DotProduct() with mismatched dims = %v, want MaxFloat32", result)
+	}
+}
+
 func TestNormalize(t *testing.T) {
 	v := []float32{3, 4}
 	result := NormalizeCopy(v)
@@ -548,6 +613,36 @@ func TestScoreRangeConsistency(t *testing.T) {
 // FlatIndex tests
 // ============================================================================
 
+func TestFlatIndexWithDistance(t *testing.T) {
+	// Test that WithDistance option works
+	idx := NewFlatIndex(3, WithDistance(Euclidean))
+
+	// Add vectors
+	idx.Add([]byte("v1"), []float32{0, 0, 0})
+	idx.Add([]byte("v2"), []float32{3, 4, 0}) // Euclidean distance = 25 (squared)
+	idx.Add([]byte("v3"), []float32{1, 0, 0}) // Euclidean distance = 1 (squared)
+
+	// Search should use Euclidean distance
+	results, err := idx.Search([]float32{0, 0, 0}, 3)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+
+	// v1 should be closest (distance 0), then v3 (distance 1), then v2 (distance 25)
+	if len(results) != 3 {
+		t.Fatalf("Search() returned %d results, want 3", len(results))
+	}
+	if string(results[0].ID) != "v1" {
+		t.Errorf("First result = %s, want v1", results[0].ID)
+	}
+	if string(results[1].ID) != "v3" {
+		t.Errorf("Second result = %s, want v3", results[1].ID)
+	}
+	if string(results[2].ID) != "v2" {
+		t.Errorf("Third result = %s, want v2", results[2].ID)
+	}
+}
+
 func TestFlatIndexBasicOperations(t *testing.T) {
 	idx := NewFlatIndex(3)
 
@@ -752,6 +847,64 @@ func TestFlatIndexConcurrency(t *testing.T) {
 // ============================================================================
 // HNSWIndex tests
 // ============================================================================
+
+func TestHNSWIndexWithEfSearch(t *testing.T) {
+	// Test that WithEfSearch option works
+	idx := NewHNSWIndex(3, WithSeed(42), WithM(4), WithEfConstruction(50), WithEfSearch(100))
+
+	// Add vectors
+	idx.Add([]byte("v1"), []float32{1, 0, 0})
+	idx.Add([]byte("v2"), []float32{0.9, 0.1, 0})
+	idx.Add([]byte("v3"), []float32{0.8, 0.2, 0})
+
+	// Search should work with the configured efSearch
+	results, err := idx.Search([]float32{1, 0, 0}, 2)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("Search() returned %d results, want 2", len(results))
+	}
+
+	// v1 should be first (exact match)
+	if string(results[0].ID) != "v1" {
+		t.Errorf("First result = %s, want v1", results[0].ID)
+	}
+}
+
+func TestHNSWIndexWithHNSWDistance(t *testing.T) {
+	// Test that WithHNSWDistance option works with Euclidean distance
+	idx := NewHNSWIndex(3, WithSeed(42), WithM(4), WithEfConstruction(50), WithHNSWDistance(Euclidean))
+
+	// Add vectors
+	idx.Add([]byte("v1"), []float32{0, 0, 0})
+	idx.Add([]byte("v2"), []float32{3, 4, 0}) // Euclidean distance = 25 (squared)
+	idx.Add([]byte("v3"), []float32{1, 0, 0}) // Euclidean distance = 1 (squared)
+
+	// Search should use Euclidean distance
+	results, err := idx.Search([]float32{0, 0, 0}, 3)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+
+	if len(results) != 3 {
+		t.Fatalf("Search() returned %d results, want 3", len(results))
+	}
+
+	// v1 should be first (distance 0)
+	if string(results[0].ID) != "v1" {
+		t.Errorf("First result = %s, want v1", results[0].ID)
+	}
+	// v3 should be second (distance 1)
+	if string(results[1].ID) != "v3" {
+		t.Errorf("Second result = %s, want v3", results[1].ID)
+	}
+	// v2 should be third (distance 25)
+	if string(results[2].ID) != "v2" {
+		t.Errorf("Third result = %s, want v2", results[2].ID)
+	}
+}
 
 func TestHNSWIndexBasicOperations(t *testing.T) {
 	idx := NewHNSWIndex(3, WithSeed(42))
