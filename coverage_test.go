@@ -437,3 +437,126 @@ func TestGetVectorScore_EdgeCases_Extra(t *testing.T) {
 		t.Error("expected 0 for empty vector bytes")
 	}
 }
+
+func TestFacets_ClosedDB_Extra(t *testing.T) {
+	t.Parallel()
+	db, cleanup := setupTestDB(t)
+	db.options.FacetsEnabled = true
+	cleanup() // Close the DB
+
+	ctx := context.Background()
+	triple := graph.NewTripleFromStrings("alice", "knows", "bob")
+
+	// All facet operations should return ErrClosed
+	if err := db.SetFacet(ctx, FacetSubject, []byte("alice"), []byte("age"), []byte("30")); !errors.Is(err, ErrClosed) {
+		t.Errorf("SetFacet: expected ErrClosed, got %v", err)
+	}
+	if _, err := db.GetFacet(ctx, FacetSubject, []byte("alice"), []byte("age")); !errors.Is(err, ErrClosed) {
+		t.Errorf("GetFacet: expected ErrClosed, got %v", err)
+	}
+	if _, err := db.GetFacets(ctx, FacetSubject, []byte("alice")); !errors.Is(err, ErrClosed) {
+		t.Errorf("GetFacets: expected ErrClosed, got %v", err)
+	}
+	if err := db.DelFacet(ctx, FacetSubject, []byte("alice"), []byte("age")); !errors.Is(err, ErrClosed) {
+		t.Errorf("DelFacet: expected ErrClosed, got %v", err)
+	}
+	if err := db.SetTripleFacet(ctx, triple, []byte("since"), []byte("2020")); !errors.Is(err, ErrClosed) {
+		t.Errorf("SetTripleFacet: expected ErrClosed, got %v", err)
+	}
+	if _, err := db.GetTripleFacet(ctx, triple, []byte("since")); !errors.Is(err, ErrClosed) {
+		t.Errorf("GetTripleFacet: expected ErrClosed, got %v", err)
+	}
+	if _, err := db.GetTripleFacets(ctx, triple); !errors.Is(err, ErrClosed) {
+		t.Errorf("GetTripleFacets: expected ErrClosed, got %v", err)
+	}
+	if err := db.DelTripleFacet(ctx, triple, []byte("since")); !errors.Is(err, ErrClosed) {
+		t.Errorf("DelTripleFacet: expected ErrClosed, got %v", err)
+	}
+	if err := db.DelAllTripleFacets(ctx, triple); !errors.Is(err, ErrClosed) {
+		t.Errorf("DelAllTripleFacets: expected ErrClosed, got %v", err)
+	}
+	if _, err := db.GetFacetIterator(ctx, FacetSubject, []byte("alice")); !errors.Is(err, ErrClosed) {
+		t.Errorf("GetFacetIterator: expected ErrClosed, got %v", err)
+	}
+	if _, err := db.GetTripleFacetIterator(ctx, triple); !errors.Is(err, ErrClosed) {
+		t.Errorf("GetTripleFacetIterator: expected ErrClosed, got %v", err)
+	}
+}
+
+func TestFacets_ContextCanceled_Extra(t *testing.T) {
+	t.Parallel()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+	db.options.FacetsEnabled = true
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	triple := graph.NewTripleFromStrings("alice", "knows", "bob")
+
+	// All facet operations should return context.Canceled
+	if err := db.SetFacet(ctx, FacetSubject, []byte("alice"), []byte("age"), []byte("30")); !errors.Is(err, context.Canceled) {
+		t.Errorf("SetFacet: expected context.Canceled, got %v", err)
+	}
+	if _, err := db.GetFacet(ctx, FacetSubject, []byte("alice"), []byte("age")); !errors.Is(err, context.Canceled) {
+		t.Errorf("GetFacet: expected context.Canceled, got %v", err)
+	}
+	if _, err := db.GetFacets(ctx, FacetSubject, []byte("alice")); !errors.Is(err, context.Canceled) {
+		t.Errorf("GetFacets: expected context.Canceled, got %v", err)
+	}
+	if err := db.DelFacet(ctx, FacetSubject, []byte("alice"), []byte("age")); !errors.Is(err, context.Canceled) {
+		t.Errorf("DelFacet: expected context.Canceled, got %v", err)
+	}
+	if err := db.SetTripleFacet(ctx, triple, []byte("since"), []byte("2020")); !errors.Is(err, context.Canceled) {
+		t.Errorf("SetTripleFacet: expected context.Canceled, got %v", err)
+	}
+	if _, err := db.GetTripleFacet(ctx, triple, []byte("since")); !errors.Is(err, context.Canceled) {
+		t.Errorf("GetTripleFacet: expected context.Canceled, got %v", err)
+	}
+	if _, err := db.GetTripleFacets(ctx, triple); !errors.Is(err, context.Canceled) {
+		t.Errorf("GetTripleFacets: expected context.Canceled, got %v", err)
+	}
+	if err := db.DelTripleFacet(ctx, triple, []byte("since")); !errors.Is(err, context.Canceled) {
+		t.Errorf("DelTripleFacet: expected context.Canceled, got %v", err)
+	}
+	if err := db.DelAllTripleFacets(ctx, triple); !errors.Is(err, context.Canceled) {
+		t.Errorf("DelAllTripleFacets: expected context.Canceled, got %v", err)
+	}
+	if _, err := db.GetFacetIterator(ctx, FacetSubject, []byte("alice")); !errors.Is(err, context.Canceled) {
+		t.Errorf("GetFacetIterator: expected context.Canceled, got %v", err)
+	}
+	if _, err := db.GetTripleFacetIterator(ctx, triple); !errors.Is(err, context.Canceled) {
+		t.Errorf("GetTripleFacetIterator: expected context.Canceled, got %v", err)
+	}
+}
+
+func TestFacetIterator_Key_Malformed_Extra(t *testing.T) {
+	t.Parallel()
+
+	// Test Key() with malformed iterator key
+	m := &mockStore{
+		newIteratorFunc: func(slice *util.Range, ro *opt.ReadOptions) iterator.Iterator {
+			return &mockIterator{next: true, value: []byte("value")}
+		},
+	}
+	db, _ := OpenWithDB(m)
+	db.options.FacetsEnabled = true
+
+	iter, err := db.GetFacetIterator(context.Background(), FacetSubject, []byte("alice"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer iter.Close()
+
+	// Advance to get a result
+	if !iter.Next() {
+		t.Fatal("expected result")
+	}
+
+	// Key() should handle malformed key
+	key := iter.Key()
+	// The mockIterator returns "facet::subject::alice::age" which should parse correctly
+	if string(key) != "age" {
+		t.Errorf("Key() = %s, want age", key)
+	}
+}
