@@ -243,3 +243,54 @@ func Example_journal() {
 	fmt.Printf("Journal has %d entries\n", count)
 	// Output: Journal has 3 entries
 }
+
+// Example_searchJoin demonstrates multi-pattern joins to find complex relationships.
+func Example_searchJoin() {
+	dir, err := os.MkdirTemp("", "levelgraph-join")
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer os.RemoveAll(dir)
+
+	db, err := levelgraph.Open(filepath.Join(dir, "join.db"))
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Build a graph of people and their interests
+	db.Put(ctx,
+		graph.NewTripleFromStrings("alice", "likes", "tennis"),
+		graph.NewTripleFromStrings("alice", "likes", "programming"),
+		graph.NewTripleFromStrings("bob", "likes", "tennis"),
+		graph.NewTripleFromStrings("bob", "likes", "chess"),
+		graph.NewTripleFromStrings("charlie", "likes", "programming"),
+	)
+
+	// Find what alice and bob have in common (join on shared interest)
+	results, err := db.Search(ctx, []*graph.Pattern{
+		{
+			Subject:   graph.ExactString("alice"),
+			Predicate: graph.ExactString("likes"),
+			Object:    graph.Binding("interest"),
+		},
+		{
+			Subject:   graph.ExactString("bob"),
+			Predicate: graph.ExactString("likes"),
+			Object:    graph.Binding("interest"), // Same variable binds shared value
+		},
+	}, nil)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	if len(results) > 0 {
+		fmt.Printf("Alice and Bob both like: %s\n", results[0]["interest"])
+	}
+	// Output: Alice and Bob both like: tennis
+}
