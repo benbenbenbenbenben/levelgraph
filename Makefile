@@ -30,12 +30,17 @@ bench-readme:
 vet:
 	go vet ./...
 
+# Run staticcheck (install with: go install honnef.co/go/tools/cmd/staticcheck@latest)
+staticcheck:
+	@which staticcheck > /dev/null 2>&1 || (echo "staticcheck not installed. Run: go install honnef.co/go/tools/cmd/staticcheck@latest" && exit 1)
+	staticcheck ./...
+
 # Format code
 fmt:
 	gofmt -w .
 
-# Lint alias
-lint: vet
+# Lint alias (runs vet and staticcheck)
+lint: vet staticcheck
 
 # Clean test cache
 clean:
@@ -46,7 +51,7 @@ examples:
 	go test -v -run Example ./...
 
 # Run all checks before commit
-check: fmt vet test
+check: fmt vet staticcheck test
 
 # Build CLI tool
 build:
@@ -90,8 +95,9 @@ help:
 	@echo "  build        - Build CLI tool"
 	@echo "  test         - Run tests with race detector"
 	@echo "  bench        - Run benchmarks"
+	@echo "  lint         - Run go vet and staticcheck"
 	@echo "  wasm         - Build WebAssembly module"
 	@echo "  playground   - Build and setup playground"
 	@echo "  serve        - Serve playground locally"
-	@echo "  check        - Run fmt, vet, and test"
+	@echo "  check        - Run fmt, vet, staticcheck, and test"
 	@echo "  clean        - Clean build artifacts"
