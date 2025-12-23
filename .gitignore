@@ -47,3 +47,4 @@ debug-*.json
 # These are root-level binaries, not directories
 /levelgraph
 /nolij
+/wasm
