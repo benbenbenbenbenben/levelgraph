@@ -562,9 +562,9 @@ func (db *DB) applyVectorFilter(ctx context.Context, solutions []graph.Solution,
 					if len(parts) == 0 {
 						continue
 					}
-					valStr := string(parts[0])
 
-					if sols, found := uniqueValues[valStr]; found {
+					// Use string(parts[0]) directly in map lookup for compiler optimization (SA6001)
+					if sols, found := uniqueValues[string(parts[0])]; found {
 						for _, sol := range sols {
 							scored = append(scored, scoredSolution{
 								solution: sol,
