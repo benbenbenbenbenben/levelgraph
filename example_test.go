@@ -425,3 +425,64 @@ func Example_hybridSearch() {
 	//   charlie likes tennis (similarity: 1.00)
 	//   alice likes badminton (similarity: 1.00)
 }
+
+// Example_iterator demonstrates using iterators for memory-efficient
+// streaming of large result sets instead of loading all results into memory.
+func Example_iterator() {
+	dir, err := os.MkdirTemp("", "levelgraph-example-iter")
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer os.RemoveAll(dir)
+
+	db, err := levelgraph.Open(filepath.Join(dir, "iter.db"))
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Add some triples
+	db.Put(ctx,
+		graph.NewTripleFromStrings("alice", "knows", "bob"),
+		graph.NewTripleFromStrings("alice", "knows", "charlie"),
+		graph.NewTripleFromStrings("alice", "knows", "david"),
+	)
+
+	// Use iterator instead of Get() for large result sets
+	// This streams results one at a time instead of loading all into memory
+	pattern := &graph.Pattern{
+		Subject:   graph.ExactString("alice"),
+		Predicate: graph.ExactString("knows"),
+		Object:    graph.Wildcard(),
+	}
+
+	iter, err := db.GetIterator(ctx, pattern)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer iter.Release()
+
+	fmt.Println("Alice knows:")
+	for iter.Next() {
+		triple, err := iter.Triple()
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+		fmt.Printf("  %s\n", triple.Object)
+	}
+
+	if err := iter.Error(); err != nil {
+		fmt.Println("Error:", err)
+	}
+	// Output:
+	// Alice knows:
+	//   bob
+	//   charlie
+	//   david
+}
