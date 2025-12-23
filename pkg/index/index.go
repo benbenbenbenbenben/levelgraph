@@ -22,6 +22,8 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 // OTHER DEALINGS IN THE SOFTWARE.
 
+// Package index provides hexastore index key generation and management for
+// efficient triple pattern matching using six different key orderings.
 package index
 
 import (
@@ -43,7 +45,7 @@ const (
 	IndexOSP IndexName = "osp"
 )
 
-// IndexDef defines the order of fields for each index.
+// IndexDefs defines the order of fields for each index.
 // Each index stores the same triple data but with different key orderings
 // to enable efficient lookups based on which components are specified.
 var IndexDefs = map[IndexName][]string{

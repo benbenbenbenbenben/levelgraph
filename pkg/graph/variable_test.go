@@ -238,7 +238,7 @@ func TestAsVariable(t *testing.T) {
 
 func TestVarAlias(t *testing.T) {
 	// Var is an alias for Variable
-	var v Var = Variable{Name: "test"}
+	v := Var{Name: "test"}
 	if v.Name != "test" {
 		t.Error("Var alias should work")
 	}

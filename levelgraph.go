@@ -66,10 +66,16 @@ import (
 	"github.com/benbenbenbenbenben/levelgraph/pkg/index"
 )
 
-// Type aliases for graph types to maintain package API
+// Triple is an alias for graph.Triple representing a subject-predicate-object triple.
 type Triple = graph.Triple
+
+// Pattern is an alias for graph.Pattern representing a query pattern.
 type Pattern = graph.Pattern
+
+// Variable is an alias for graph.Variable representing a variable binding in patterns.
 type Variable = graph.Variable
+
+// Solution is an alias for graph.Solution representing query result bindings.
 type Solution = graph.Solution
 
 var (

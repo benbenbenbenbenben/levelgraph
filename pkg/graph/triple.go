@@ -22,6 +22,8 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 // OTHER DEALINGS IN THE SOFTWARE.
 
+// Package graph provides core types for graph database operations including
+// triples, patterns, variables, and solutions for pattern matching queries.
 package graph
 
 import (
