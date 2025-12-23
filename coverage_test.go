@@ -92,6 +92,7 @@ type mockIterator struct {
 	iterator.Iterator
 	next  bool
 	value []byte
+	key   []byte
 	err   error
 }
 
@@ -104,7 +105,12 @@ func (m *mockIterator) First() bool   { return m.next }
 func (m *mockIterator) Value() []byte { return m.value }
 func (m *mockIterator) Error() error  { return m.err }
 func (m *mockIterator) Release()      {}
-func (m *mockIterator) Key() []byte   { return []byte("facet::subject::alice::age") }
+func (m *mockIterator) Key() []byte {
+	if m.key != nil {
+		return m.key
+	}
+	return []byte("facet::subject::alice::age")
+}
 
 func TestDB_Closed_Errors_Extra(t *testing.T) {
 	t.Parallel()
@@ -718,5 +724,95 @@ func TestJournal_GetIteratorWithBefore_Extra(t *testing.T) {
 	// Should only get first entry
 	if count != 1 {
 		t.Errorf("expected 1 entry before midTime, got %d", count)
+	}
+}
+
+// facetMockIterator is a mock iterator specifically for testing FacetIterator edge cases
+type facetMockIterator struct {
+	iterator.Iterator
+	keys    [][]byte
+	values  [][]byte
+	pos     int
+	started bool
+}
+
+func (m *facetMockIterator) First() bool {
+	m.pos = 0
+	m.started = true
+	return len(m.keys) > 0
+}
+
+func (m *facetMockIterator) Next() bool {
+	if !m.started {
+		m.started = true
+		m.pos = 0
+		return len(m.keys) > 0
+	}
+	m.pos++
+	return m.pos < len(m.keys)
+}
+
+func (m *facetMockIterator) Release() {}
+
+func (m *facetMockIterator) Error() error { return nil }
+
+func (m *facetMockIterator) Key() []byte {
+	if m.pos >= 0 && m.pos < len(m.keys) {
+		return m.keys[m.pos]
+	}
+	return nil
+}
+
+func (m *facetMockIterator) Value() []byte {
+	if m.pos >= 0 && m.pos < len(m.values) {
+		return m.values[m.pos]
+	}
+	return nil
+}
+
+// TestFacetIterator_Key_EdgeCase tests the edge case where the key is
+// shorter than or equal to the prefix length.
+func TestFacetIterator_Key_EdgeCase(t *testing.T) {
+	// Create a FacetIterator with a mock iterator that returns a short key
+	mock := &facetMockIterator{
+		keys:   [][]byte{[]byte("short")}, // Only 5 bytes
+		values: [][]byte{[]byte("value")},
+	}
+
+	// Create FacetIterator with prefixLen longer than the key
+	fi := &FacetIterator{
+		iter:      mock,
+		prefixLen: 10, // Prefix is longer than the key
+	}
+
+	// Advance to first item
+	if !fi.Next() {
+		t.Fatal("expected Next() to return true")
+	}
+
+	// Key() should return nil since fullKey length <= prefixLen
+	key := fi.Key()
+	if key != nil {
+		t.Errorf("expected nil key for short fullKey, got %v", key)
+	}
+
+	// Also test exact match (key length equals prefix length)
+	mock2 := &facetMockIterator{
+		keys:   [][]byte{[]byte("exactmatch")}, // 10 bytes
+		values: [][]byte{[]byte("value")},
+	}
+	fi2 := &FacetIterator{
+		iter:      mock2,
+		prefixLen: 10, // Prefix equals key length
+	}
+
+	if !fi2.Next() {
+		t.Fatal("expected Next() to return true")
+	}
+
+	// Key() should return nil since fullKey length == prefixLen (not >)
+	key2 := fi2.Key()
+	if key2 != nil {
+		t.Errorf("expected nil key when fullKey length equals prefixLen, got %v", key2)
 	}
 }
