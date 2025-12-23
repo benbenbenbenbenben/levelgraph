@@ -2415,3 +2415,123 @@ func TestDB_VectorFilterDuplicateValues(t *testing.T) {
 		}
 	}
 }
+
+// TestDB_DeleteVector_ClosedDB tests DeleteVector on a closed database.
+func TestDB_DeleteVector_ClosedDB(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	db, err := Open(dbPath, WithVectors(index))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+
+	ctx := context.Background()
+	db.SetVector(ctx, []byte("test"), []float32{1, 0, 0})
+
+	db.Close() // Close the DB
+
+	err = db.DeleteVector(ctx, []byte("test"))
+	if err == nil || !errors.Is(err, ErrClosed) {
+		t.Errorf("DeleteVector on closed DB: expected ErrClosed, got %v", err)
+	}
+}
+
+// TestDB_DeleteVector_ContextCanceled tests DeleteVector with canceled context.
+func TestDB_DeleteVector_ContextCanceled(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	db, err := Open(dbPath, WithVectors(index))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	liveCtx := context.Background()
+	db.SetVector(liveCtx, []byte("test"), []float32{1, 0, 0})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	err = db.DeleteVector(ctx, []byte("test"))
+	if err == nil || !errors.Is(err, context.Canceled) {
+		t.Errorf("DeleteVector with canceled ctx: expected context.Canceled, got %v", err)
+	}
+}
+
+// TestDB_GetVector_ClosedDB tests GetVector on a closed database.
+func TestDB_GetVector_ClosedDB(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	db, err := Open(dbPath, WithVectors(index))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+
+	ctx := context.Background()
+	db.SetVector(ctx, []byte("test"), []float32{1, 0, 0})
+
+	db.Close() // Close the DB
+
+	_, err = db.GetVector(ctx, []byte("test"))
+	if err == nil || !errors.Is(err, ErrClosed) {
+		t.Errorf("GetVector on closed DB: expected ErrClosed, got %v", err)
+	}
+}
+
+// TestDB_SearchVectors_ClosedDB tests SearchVectors on a closed database.
+func TestDB_SearchVectors_ClosedDB(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	db, err := Open(dbPath, WithVectors(index))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+
+	ctx := context.Background()
+	db.SetVector(ctx, []byte("test"), []float32{1, 0, 0})
+
+	db.Close() // Close the DB
+
+	_, err = db.SearchVectors(ctx, []float32{1, 0, 0}, 5)
+	if err == nil || !errors.Is(err, ErrClosed) {
+		t.Errorf("SearchVectors on closed DB: expected ErrClosed, got %v", err)
+	}
+}
+
+// TestDB_VectorCount_ClosedDB tests VectorCount on a closed database.
+func TestDB_VectorCount_ClosedDB(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	db, err := Open(dbPath, WithVectors(index))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+
+	db.Close() // Close the DB
+
+	// VectorCount returns 0 when closed (doesn't error)
+	count := db.VectorCount()
+	if count != 0 {
+		t.Errorf("VectorCount on closed DB = %d, want 0", count)
+	}
+}
