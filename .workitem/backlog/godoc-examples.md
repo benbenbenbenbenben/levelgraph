@@ -1,21 +1,17 @@
----
-created: 2025-12-23T22:16:38.548Z
----
-
 # Add more godoc examples for advanced features
 
 The codebase could benefit from more runnable godoc examples.
 
-## Suggested Examples
+## Completed Examples
 
-1. **Facets** - Show how to add and query faceted triples
-2. **Journal** - Demonstrate journaling and recovery
-3. **Vector Search** - Show semantic search integration
-4. **Navigator** - Demonstrate the fluent traversal API
-5. **Complex Queries** - Show multi-step pattern matching with Search()
+1. ✅ **Facets** - `Example_facets()` - Shows how to add and query faceted triples
+2. ✅ **Journal** - `Example_journal()` - Demonstrates journaling for audit trails
+3. (Already existed) **Navigator** - `Example_navigator()` - Demonstrates the fluent traversal API
 
-## Location
-Add to example_test.go as `func Example_*()` functions.
+## Remaining Suggestions
+
+4. **Vector Search** - Show semantic search integration (requires model files, harder to make portable)
+5. **Complex Queries** - Show multi-step pattern matching with Search() (partially covered by Example_search)
 
 ## Priority
-Low - Documentation enhancement, not critical for functionality.
+Low - Documentation enhancement. The core examples are now complete.
