@@ -351,3 +351,77 @@ func Example_vectorSearch() {
 	//   badminton (score: 1.00)
 	//   football (score: 0.61)
 }
+
+// Example_hybridSearch demonstrates combining graph pattern matching with
+// vector similarity search (hybrid search). This enables finding related
+// graph entities based on semantic similarity.
+func Example_hybridSearch() {
+	dir, err := os.MkdirTemp("", "levelgraph-example-hybrid")
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer os.RemoveAll(dir)
+
+	// Create a vector index (3 dimensions for this simple example)
+	vectorIndex := vector.NewFlatIndex(3)
+
+	db, err := levelgraph.Open(filepath.Join(dir, "hybrid.db"),
+		levelgraph.WithVectors(vectorIndex),
+	)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Build a graph of people and their favorite sports
+	db.Put(ctx,
+		graph.NewTripleFromStrings("alice", "likes", "tennis"),
+		graph.NewTripleFromStrings("alice", "likes", "badminton"),
+		graph.NewTripleFromStrings("bob", "likes", "football"),
+		graph.NewTripleFromStrings("charlie", "likes", "tennis"),
+	)
+
+	// Associate vectors with sports (simulated embeddings)
+	// Racket sports (tennis, badminton) are similar
+	db.SetObjectVector(ctx, []byte("tennis"), []float32{0.9, 0.1, 0.0})
+	db.SetObjectVector(ctx, []byte("badminton"), []float32{0.85, 0.15, 0.0})
+	db.SetObjectVector(ctx, []byte("football"), []float32{0.1, 0.9, 0.0})
+
+	// Hybrid search: Find people who like sports similar to tennis
+	// Combines graph pattern matching with vector similarity
+	results, err := db.Search(ctx, []*graph.Pattern{
+		{
+			Subject:   graph.Binding("person"),
+			Predicate: graph.ExactString("likes"),
+			Object:    graph.Binding("sport"),
+		},
+	}, &levelgraph.SearchOptions{
+		VectorFilter: &levelgraph.VectorFilter{
+			Variable: "sport",
+			Query:    []float32{0.9, 0.1, 0.0}, // Query vector for "tennis-like"
+			TopK:     10,
+			MinScore: 0.8, // Only high similarity matches
+			IDType:   vector.IDTypeObject,
+		},
+	})
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	fmt.Println("People who like tennis-like sports:")
+	for _, sol := range results {
+		score := levelgraph.GetVectorScore(sol)
+		fmt.Printf("  %s likes %s (similarity: %.2f)\n",
+			sol["person"], sol["sport"], score)
+	}
+	// Output:
+	// People who like tennis-like sports:
+	//   alice likes tennis (similarity: 1.00)
+	//   charlie likes tennis (similarity: 1.00)
+	//   alice likes badminton (similarity: 1.00)
+}
