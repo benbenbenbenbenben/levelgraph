@@ -560,3 +560,163 @@ func TestFacetIterator_Key_Malformed_Extra(t *testing.T) {
 		t.Errorf("Key() = %s, want age", key)
 	}
 }
+
+func TestJournal_ContextCanceled_Extra(t *testing.T) {
+	t.Parallel()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+	db.options.JournalEnabled = true
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	db2, cleanup2 := setupTestDB(t)
+	defer cleanup2()
+
+	// All journal operations should return context.Canceled
+	if _, err := db.GetJournalIterator(ctx, time.Time{}); !errors.Is(err, context.Canceled) {
+		t.Errorf("GetJournalIterator: expected context.Canceled, got %v", err)
+	}
+	if _, err := db.GetJournalEntries(ctx, time.Time{}); !errors.Is(err, context.Canceled) {
+		t.Errorf("GetJournalEntries: expected context.Canceled, got %v", err)
+	}
+	if _, err := db.Trim(ctx, time.Now()); !errors.Is(err, context.Canceled) {
+		t.Errorf("Trim: expected context.Canceled, got %v", err)
+	}
+	if _, err := db.TrimAndExport(ctx, time.Now(), db2); !errors.Is(err, context.Canceled) {
+		t.Errorf("TrimAndExport: expected context.Canceled, got %v", err)
+	}
+	if _, err := db.ReplayJournal(ctx, time.Time{}, db2); !errors.Is(err, context.Canceled) {
+		t.Errorf("ReplayJournal: expected context.Canceled, got %v", err)
+	}
+	if _, err := db.JournalCount(ctx, time.Time{}); !errors.Is(err, context.Canceled) {
+		t.Errorf("JournalCount: expected context.Canceled, got %v", err)
+	}
+}
+
+func TestJournal_ReplayWithAfterTime_Extra(t *testing.T) {
+	t.Parallel()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+	db.options.JournalEnabled = true
+
+	ctx := context.Background()
+
+	// Add first entry
+	db.Put(ctx, graph.NewTripleFromStrings("a", "b", "c"))
+
+	// Record time between entries
+	time.Sleep(10 * time.Millisecond)
+	midTime := time.Now()
+	time.Sleep(10 * time.Millisecond)
+
+	// Add second entry
+	db.Put(ctx, graph.NewTripleFromStrings("d", "e", "f"))
+
+	// Replay only entries after midTime to a new DB
+	db2, cleanup2 := setupTestDB(t)
+	defer cleanup2()
+
+	count, err := db.ReplayJournal(ctx, midTime, db2)
+	if err != nil {
+		t.Fatalf("ReplayJournal error: %v", err)
+	}
+
+	// Should only replay the second entry
+	if count != 1 {
+		t.Errorf("ReplayJournal count = %d, want 1", count)
+	}
+
+	// Verify only second triple exists in target DB
+	results, _ := db2.Get(ctx, graph.NewPattern("d", nil, nil))
+	if len(results) != 1 {
+		t.Errorf("expected 1 result in target db, got %d", len(results))
+	}
+
+	results, _ = db2.Get(ctx, graph.NewPattern("a", nil, nil))
+	if len(results) != 0 {
+		t.Errorf("expected 0 results for first triple, got %d", len(results))
+	}
+}
+
+func TestJournal_ReplayWithDelete_Extra(t *testing.T) {
+	t.Parallel()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+	db.options.JournalEnabled = true
+
+	ctx := context.Background()
+
+	// Add and then delete a triple
+	triple := graph.NewTripleFromStrings("alice", "knows", "bob")
+	db.Put(ctx, triple)
+	db.Del(ctx, triple)
+
+	// Replay to a new DB
+	db2, cleanup2 := setupTestDB(t)
+	defer cleanup2()
+
+	count, err := db.ReplayJournal(ctx, time.Time{}, db2)
+	if err != nil {
+		t.Fatalf("ReplayJournal error: %v", err)
+	}
+
+	// Should replay both put and del
+	if count != 2 {
+		t.Errorf("ReplayJournal count = %d, want 2", count)
+	}
+
+	// Triple should not exist in target DB (was deleted)
+	results, _ := db2.Get(ctx, graph.NewPattern("alice", nil, nil))
+	if len(results) != 0 {
+		t.Errorf("expected 0 results after replay with delete, got %d", len(results))
+	}
+}
+
+func TestJournal_GetIteratorWithBefore_Extra(t *testing.T) {
+	t.Parallel()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+	db.options.JournalEnabled = true
+
+	ctx := context.Background()
+
+	// Add first entry
+	db.Put(ctx, graph.NewTripleFromStrings("a", "b", "c"))
+
+	time.Sleep(10 * time.Millisecond)
+	midTime := time.Now()
+	time.Sleep(10 * time.Millisecond)
+
+	// Add second entry
+	db.Put(ctx, graph.NewTripleFromStrings("d", "e", "f"))
+
+	// Get iterator for entries before midTime
+	iter, err := db.GetJournalIterator(ctx, midTime)
+	if err != nil {
+		t.Fatalf("GetJournalIterator error: %v", err)
+	}
+	defer iter.Close()
+
+	count := 0
+	for iter.Next() {
+		count++
+		entry, err := iter.Entry()
+		if err != nil {
+			t.Fatalf("Entry error: %v", err)
+		}
+		// All entries should be before midTime
+		if !entry.Timestamp.Before(midTime) {
+			t.Errorf("Entry timestamp %v should be before %v", entry.Timestamp, midTime)
+		}
+	}
+
+	if iter.Error() != nil {
+		t.Errorf("Iterator error: %v", iter.Error())
+	}
+
+	// Should only get first entry
+	if count != 1 {
+		t.Errorf("expected 1 entry before midTime, got %d", count)
+	}
+}
