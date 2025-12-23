@@ -180,3 +180,88 @@ func TestEmbedderImplementsInterface(t *testing.T) {
 		Dimensions() int
 	} = (*Embedder)(nil)
 }
+
+// Unit tests that don't require model files
+
+func TestCosineSimilarityUnit(t *testing.T) {
+	tests := []struct {
+		name     string
+		a        []float32
+		b        []float32
+		expected float32
+		epsilon  float32
+	}{
+		{
+			name:     "identical vectors",
+			a:        []float32{1, 0, 0},
+			b:        []float32{1, 0, 0},
+			expected: 1.0,
+			epsilon:  0.0001,
+		},
+		{
+			name:     "opposite vectors",
+			a:        []float32{1, 0, 0},
+			b:        []float32{-1, 0, 0},
+			expected: -1.0,
+			epsilon:  0.0001,
+		},
+		{
+			name:     "orthogonal vectors",
+			a:        []float32{1, 0, 0},
+			b:        []float32{0, 1, 0},
+			expected: 0.0,
+			epsilon:  0.0001,
+		},
+		{
+			name:     "45 degree angle",
+			a:        []float32{1, 0},
+			b:        []float32{1, 1}, // normalized: (0.707, 0.707)
+			expected: 0.7071,          // cos(45°) ≈ 0.7071
+			epsilon:  0.001,
+		},
+		{
+			name:     "scaled identical vectors",
+			a:        []float32{1, 2, 3},
+			b:        []float32{2, 4, 6},
+			expected: 1.0, // same direction, different magnitude
+			epsilon:  0.0001,
+		},
+		{
+			name:     "high dimensional",
+			a:        []float32{1, 1, 1, 1, 1, 1, 1, 1},
+			b:        []float32{1, 1, 1, 1, 1, 1, 1, 1},
+			expected: 1.0,
+			epsilon:  0.0001,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CosineSimilarity(tt.a, tt.b)
+			diff := got - tt.expected
+			if diff < 0 {
+				diff = -diff
+			}
+			if diff > tt.epsilon {
+				t.Errorf("CosineSimilarity(%v, %v) = %v, want %v (±%v)",
+					tt.a, tt.b, got, tt.expected, tt.epsilon)
+			}
+		})
+	}
+}
+
+func TestNewEmbedderInvalidPath(t *testing.T) {
+	// Test that NewEmbedder returns an error for non-existent directory
+	_, err := NewEmbedder("/nonexistent/path/to/model")
+	if err == nil {
+		t.Error("NewEmbedder with invalid path should return error")
+	}
+}
+
+func TestNewEmbedderInt8InvalidPath(t *testing.T) {
+	// Test that NewEmbedderInt8 returns an error for non-existent directory
+	_, err := NewEmbedderInt8("/nonexistent/path/to/model")
+	if err == nil {
+		t.Error("NewEmbedderInt8 with invalid path should return error")
+	}
+}
