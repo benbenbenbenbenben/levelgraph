@@ -329,3 +329,111 @@ func TestNavigator_First_Error_Extra(t *testing.T) {
 		t.Error("expected error")
 	}
 }
+
+func TestSolutionIterator_Error_Extra(t *testing.T) {
+	t.Parallel()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "knows", "bob"))
+
+	// Create an iterator and fully consume it
+	iter, err := db.SearchIterator(ctx, []*graph.Pattern{
+		graph.NewPattern("alice", "knows", graph.V("friend")),
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer iter.Close()
+
+	// Consume all results
+	for iter.Next() {
+	}
+
+	// Error() should return nil when no errors occurred
+	if iter.Error() != nil {
+		t.Errorf("expected nil error, got %v", iter.Error())
+	}
+}
+
+func TestSolutionIterator_EmptyPatterns_Extra(t *testing.T) {
+	t.Parallel()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "knows", "bob"))
+
+	// Test with empty patterns - should return initial solution once
+	iter, err := db.SearchIterator(ctx, []*graph.Pattern{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer iter.Close()
+
+	// Should get one result (the initial empty solution)
+	if !iter.Next() {
+		t.Error("expected one result from empty patterns")
+	}
+
+	// Should have no more results
+	if iter.Next() {
+		t.Error("expected no more results after first")
+	}
+}
+
+func TestSolutionIterator_Backtrack_Extra(t *testing.T) {
+	t.Parallel()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	// Create a graph that requires backtracking
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "knows", "bob"))
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "knows", "charlie"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "knows", "dave"))
+	// charlie knows no one, so second pattern will fail for alice->charlie path
+
+	// Multi-pattern search that will require backtracking
+	iter, err := db.SearchIterator(ctx, []*graph.Pattern{
+		graph.NewPattern("alice", "knows", graph.V("friend")),
+		graph.NewPattern(graph.V("friend"), "knows", graph.V("fof")),
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer iter.Close()
+
+	count := 0
+	for iter.Next() {
+		count++
+	}
+
+	// Should find alice->bob->dave path only
+	if count != 1 {
+		t.Errorf("expected 1 result with backtracking, got %d", count)
+	}
+
+	if iter.Error() != nil {
+		t.Errorf("unexpected error: %v", iter.Error())
+	}
+}
+
+func TestGetVectorScore_EdgeCases_Extra(t *testing.T) {
+	t.Parallel()
+
+	// Test with no score key
+	sol := graph.Solution{
+		"friend": []byte("bob"),
+	}
+	if GetVectorScore(sol) != 0 {
+		t.Error("expected 0 for missing score")
+	}
+
+	// Test with empty vector bytes
+	sol["__vector_score__"] = []byte{}
+	if GetVectorScore(sol) != 0 {
+		t.Error("expected 0 for empty vector bytes")
+	}
+}

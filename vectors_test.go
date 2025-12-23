@@ -2163,3 +2163,255 @@ func TestDB_SearchSimilarSubjects_NoSubjects(t *testing.T) {
 		t.Errorf("SearchSimilarSubjects() returned %d results, want 0", len(results))
 	}
 }
+
+// TestDB_VectorFilterEmptySolutions tests that VectorFilter handles empty solutions gracefully.
+func TestDB_VectorFilterEmptySolutions(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	db, err := Open(dbPath, WithVectors(index))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Don't add any data - the pattern won't match anything
+	// Search with a pattern that won't match anything
+	solutions, err := db.Search(ctx, []*graph.Pattern{
+		{Subject: graph.ExactString("nonexistent"), Predicate: graph.ExactString("knows"), Object: graph.Binding("friend")},
+	}, &SearchOptions{
+		VectorFilter: &VectorFilter{
+			Variable: "friend",
+			Query:    []float32{1, 0, 0},
+			IDType:   vector.IDTypeObject,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+
+	// Should return empty since no solutions matched the graph pattern
+	if len(solutions) != 0 {
+		t.Errorf("Search() returned %d solutions, want 0", len(solutions))
+	}
+}
+
+// TestDB_VectorFilterNoQuery tests that VectorFilter with no query returns solutions as-is.
+func TestDB_VectorFilterNoQuery(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	db, err := Open(dbPath, WithVectors(index))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Set up graph
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "golf"))
+	db.SetObjectVector(ctx, []byte("tennis"), []float32{1, 0, 0})
+	db.SetObjectVector(ctx, []byte("golf"), []float32{0, 1, 0})
+
+	// Search with VectorFilter that has no Query and no QueryText
+	solutions, err := db.Search(ctx, []*graph.Pattern{
+		{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("sport")},
+	}, &SearchOptions{
+		VectorFilter: &VectorFilter{
+			Variable: "sport",
+			// No Query or QueryText set - should return solutions as-is
+			IDType: vector.IDTypeObject,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+
+	// Should return all 2 solutions since no vector filtering is applied
+	if len(solutions) != 2 {
+		t.Errorf("Search() returned %d solutions, want 2", len(solutions))
+	}
+}
+
+// TestDB_VectorFilterVectorNotFound tests that solutions with no corresponding vector get score 0.
+func TestDB_VectorFilterVectorNotFound(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	db, err := Open(dbPath, WithVectors(index))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Set up graph with 3 items, but only set vectors for 2 of them
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "golf"))
+	db.Put(ctx, graph.NewTripleFromStrings("carol", "likes", "swimming")) // No vector set!
+
+	db.SetObjectVector(ctx, []byte("tennis"), []float32{1, 0, 0})
+	db.SetObjectVector(ctx, []byte("golf"), []float32{0.9, 0.1, 0})
+	// Note: swimming has no vector
+
+	// Search with VectorFilter and MinScore to filter out swimming (score 0)
+	solutions, err := db.Search(ctx, []*graph.Pattern{
+		{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("sport")},
+	}, &SearchOptions{
+		VectorFilter: &VectorFilter{
+			Variable: "sport",
+			Query:    []float32{1, 0, 0}, // Tennis is exact match
+			MinScore: 0.1,                // Filter out score 0 (swimming)
+			IDType:   vector.IDTypeObject,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+
+	// Should return 2 solutions (tennis and golf), swimming filtered out due to MinScore
+	if len(solutions) != 2 {
+		t.Errorf("Search() returned %d solutions, want 2", len(solutions))
+	}
+
+	// Verify the scores - tennis should be higher than golf
+	if len(solutions) >= 2 {
+		score1 := GetVectorScore(solutions[0])
+		score2 := GetVectorScore(solutions[1])
+		if score1 < score2 {
+			t.Errorf("Expected solutions sorted by score desc, got %.2f < %.2f", score1, score2)
+		}
+	}
+}
+
+// TestDB_VectorFilterTopK tests that TopK limits results correctly.
+func TestDB_VectorFilterTopK(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	db, err := Open(dbPath, WithVectors(index))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Set up graph with multiple items
+	// Use explicitly different vectors to ensure clear ordering
+	sports := []struct {
+		name string
+		vec  []float32
+	}{
+		{"tennis", []float32{1, 0, 0}},       // Perfect match with query
+		{"golf", []float32{0.95, 0.31, 0}},   // Very similar
+		{"swimming", []float32{0.7, 0.7, 0}}, // Moderately similar
+		{"basketball", []float32{0.5, 0.5, 0.7}},
+		{"soccer", []float32{0, 0, 1}}, // Orthogonal
+	}
+	for i, s := range sports {
+		db.Put(ctx, graph.NewTripleFromStrings("player"+string(rune('1'+i)), "likes", s.name))
+		db.SetObjectVector(ctx, []byte(s.name), s.vec)
+	}
+
+	// Search with TopK=2
+	solutions, err := db.Search(ctx, []*graph.Pattern{
+		{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("sport")},
+	}, &SearchOptions{
+		VectorFilter: &VectorFilter{
+			Variable: "sport",
+			Query:    []float32{1, 0, 0},
+			TopK:     2,
+			IDType:   vector.IDTypeObject,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+
+	// Should return only top 2 solutions
+	if len(solutions) != 2 {
+		t.Errorf("Search() returned %d solutions, want 2", len(solutions))
+	}
+
+	// Verify tennis is first (best match)
+	if len(solutions) > 0 {
+		sport := string(solutions[0]["sport"])
+		if sport != "tennis" {
+			t.Errorf("First result sport = %s, want tennis", sport)
+		}
+	}
+}
+
+// TestDB_VectorFilterDuplicateValues tests caching with duplicate variable values.
+func TestDB_VectorFilterDuplicateValues(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	db, err := Open(dbPath, WithVectors(index))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Set up graph where multiple people like the same sport
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "likes", "tennis"))   // Same sport!
+	db.Put(ctx, graph.NewTripleFromStrings("carol", "likes", "tennis")) // Same sport!
+	db.SetObjectVector(ctx, []byte("tennis"), []float32{1, 0, 0})
+
+	// Search - all 3 solutions should get the same cached score
+	solutions, err := db.Search(ctx, []*graph.Pattern{
+		{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("sport")},
+	}, &SearchOptions{
+		VectorFilter: &VectorFilter{
+			Variable: "sport",
+			Query:    []float32{1, 0, 0},
+			IDType:   vector.IDTypeObject,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+
+	// Should return all 3 solutions
+	if len(solutions) != 3 {
+		t.Errorf("Search() returned %d solutions, want 3", len(solutions))
+	}
+
+	// All should have the same score (cached)
+	if len(solutions) == 3 {
+		score1 := GetVectorScore(solutions[0])
+		score2 := GetVectorScore(solutions[1])
+		score3 := GetVectorScore(solutions[2])
+		if score1 != score2 || score2 != score3 {
+			t.Errorf("Expected same cached scores, got %.2f, %.2f, %.2f", score1, score2, score3)
+		}
+		// Perfect match should have score 1.0
+		if score1 < 0.99 {
+			t.Errorf("Expected score ~1.0 for identical vectors, got %.2f", score1)
+		}
+	}
+}
