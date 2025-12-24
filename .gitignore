@@ -51,3 +51,5 @@ debug-*.json
 /nolij
 /wasm
 /simple
+example/nolij/nolij
+example/simple/simple
