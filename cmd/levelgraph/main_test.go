@@ -298,3 +298,120 @@ func TestCLI_LoadMissingArgs(t *testing.T) {
 		t.Errorf("expected exit code 1 for missing file arg, got %d", exitCode)
 	}
 }
+
+func TestCLI_InvalidDbPath(t *testing.T) {
+	var out, errOut bytes.Buffer
+	cli := &CLI{Out: &out, Err: &errOut}
+
+	// Try to open a database in a non-existent directory that can't be created
+	exitCode := cli.Run([]string{"dump", "-db", "/nonexistent/deeply/nested/path/db"})
+	if exitCode != 1 {
+		t.Errorf("expected exit code 1 for invalid db path, got %d", exitCode)
+	}
+
+	if !strings.Contains(errOut.String(), "failed to open database") {
+		t.Errorf("expected 'failed to open database' in error, got: %s", errOut.String())
+	}
+}
+
+func TestCLI_InvalidFlag(t *testing.T) {
+	var out, errOut bytes.Buffer
+	cli := &CLI{Out: &out, Err: &errOut}
+
+	exitCode := cli.Run([]string{"dump", "-invalid-flag"})
+	if exitCode != 1 {
+		t.Errorf("expected exit code 1 for invalid flag, got %d", exitCode)
+	}
+}
+
+func TestCLI_HelpVariants(t *testing.T) {
+	for _, helpCmd := range []string{"-h", "--help"} {
+		t.Run(helpCmd, func(t *testing.T) {
+			var out, errOut bytes.Buffer
+			cli := &CLI{Out: &out, Err: &errOut}
+
+			exitCode := cli.Run([]string{helpCmd})
+			if exitCode != 0 {
+				t.Errorf("expected exit code 0 for %s, got %d", helpCmd, exitCode)
+			}
+
+			if !strings.Contains(out.String(), "LevelGraph CLI") {
+				t.Errorf("expected help output for %s", helpCmd)
+			}
+		})
+	}
+}
+
+func TestCLI_LoadEmptyLines(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "levelgraph-cli-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "test.db")
+	inputFile := filepath.Join(tmpDir, "sparse.nt")
+
+	// File with lots of empty lines and comments, few actual triples
+	inputContent := `
+
+# Start of file
+
+alice knows bob .
+
+   # Indented comment
+   
+bob knows charlie .
+
+# End
+`
+	if err := os.WriteFile(inputFile, []byte(inputContent), 0644); err != nil {
+		t.Fatalf("failed to write input file: %v", err)
+	}
+
+	var out, errOut bytes.Buffer
+	cli := &CLI{Out: &out, Err: &errOut}
+
+	exitCode := cli.Run([]string{"load", "-db", dbPath, inputFile})
+	if exitCode != 0 {
+		t.Errorf("load failed with exit code %d, stderr: %s", exitCode, errOut.String())
+	}
+
+	if !strings.Contains(out.String(), "Loaded 2 triples") {
+		t.Errorf("expected 'Loaded 2 triples', got: %s", out.String())
+	}
+}
+
+func TestCLI_LoadIncompleteLines(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "levelgraph-cli-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "test.db")
+	inputFile := filepath.Join(tmpDir, "incomplete.nt")
+
+	// Lines with fewer than 3 fields should be skipped
+	inputContent := `alice knows bob .
+incomplete
+ab
+valid subject predicate object .
+`
+	if err := os.WriteFile(inputFile, []byte(inputContent), 0644); err != nil {
+		t.Fatalf("failed to write input file: %v", err)
+	}
+
+	var out, errOut bytes.Buffer
+	cli := &CLI{Out: &out, Err: &errOut}
+
+	exitCode := cli.Run([]string{"load", "-db", dbPath, inputFile})
+	if exitCode != 0 {
+		t.Errorf("load failed with exit code %d, stderr: %s", exitCode, errOut.String())
+	}
+
+	// Should only load 2 valid triples (lines with <3 fields skipped)
+	if !strings.Contains(out.String(), "Loaded 2 triples") {
+		t.Errorf("expected 'Loaded 2 triples', got: %s", out.String())
+	}
+}
