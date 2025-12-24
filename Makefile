@@ -1,8 +1,18 @@
-.PHONY: test bench bench-update lint fmt vet clean examples check wasm playground serve build
+.PHONY: test bench bench-update lint fmt vet clean examples check wasm playground serve build cover
 
 # Run tests with race detector
 test:
 	go test -race ./...
+
+# Run tests with coverage report
+cover:
+	go test -cover ./...
+
+# Run tests and generate HTML coverage report
+cover-html:
+	go test -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated: coverage.html"
 
 # Run benchmarks
 bench:
@@ -94,6 +104,8 @@ help:
 	@echo "Available targets:"
 	@echo "  build        - Build CLI tool"
 	@echo "  test         - Run tests with race detector"
+	@echo "  cover        - Run tests with coverage report"
+	@echo "  cover-html   - Generate HTML coverage report"
 	@echo "  bench        - Run benchmarks"
 	@echo "  lint         - Run go vet and staticcheck"
 	@echo "  wasm         - Build WebAssembly module"
