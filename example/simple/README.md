@@ -35,10 +35,15 @@ Track all write operations for audit trails:
 ```go
 db, _ := levelgraph.Open(path, levelgraph.WithJournal())
 
-entries, _ := db.GetJournalEntries(time.Now().Add(-time.Hour))
+// Get all journal entries (pass zero time for no filter)
+entries, _ := db.GetJournalEntries(context.Background(), time.Time{})
 for _, entry := range entries {
     fmt.Printf("%s: %s\n", entry.Operation, entry.Triple)
 }
+
+// Or filter entries before a specific time
+before := time.Now()
+entries, _ = db.GetJournalEntries(context.Background(), before)
 ```
 
 ### 3. Facets

@@ -75,13 +75,12 @@ func main() {
 
 	fmt.Println("\n=== Journal Feature ===")
 
-	// Query the journal for recent operations
-	oneHourAgo := time.Now().Add(-time.Hour)
-	entries, err := db.GetJournalEntries(context.Background(), oneHourAgo)
+	// Query the journal for all operations (pass zero time for no filter)
+	entries, err := db.GetJournalEntries(context.Background(), time.Time{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("Found %d journal entries from the last hour:\n", len(entries))
+	fmt.Printf("Found %d journal entries:\n", len(entries))
 	for _, entry := range entries {
 		fmt.Printf("  [%s] %s: %s %s %s\n",
 			entry.Timestamp.Format("15:04:05"),
