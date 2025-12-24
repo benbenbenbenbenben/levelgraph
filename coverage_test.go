@@ -25,6 +25,8 @@ package levelgraph
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -162,9 +164,17 @@ func TestDB_Store_Errors_Extra(t *testing.T) {
 		},
 	}
 	db, _ := OpenWithDB(m)
+
+	// Test Put with write error
 	err := db.Put(context.Background(), graph.NewTripleFromStrings("a", "b", "c"))
-	if err == nil || !errors.Is(err, errors.New("io error")) && err.Error() != "levelgraph: write batch: io error" {
-		t.Errorf("expected io error, got %v", err)
+	if err == nil || err.Error() != "levelgraph: write batch: io error" {
+		t.Errorf("Put: expected io error, got %v", err)
+	}
+
+	// Test Del with write error
+	err = db.Del(context.Background(), graph.NewTripleFromStrings("a", "b", "c"))
+	if err == nil || err.Error() != "levelgraph: write batch: io error" {
+		t.Errorf("Del: expected io error, got %v", err)
 	}
 }
 
@@ -1192,5 +1202,33 @@ func TestGetIterator_EdgeCases(t *testing.T) {
 	}
 	if count == 0 {
 		t.Error("expected at least one result from GetIterator")
+	}
+}
+
+// TestDB_WithLogger_Operations tests that operations work correctly with a logger
+func TestDB_WithLogger_Operations(t *testing.T) {
+	t.Parallel()
+
+	// Create a logger that discards output
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	dir := t.TempDir()
+	db, err := Open(dir, WithLogger(logger))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	triple := graph.NewTripleFromStrings("a", "b", "c")
+
+	// Test Put with logger
+	if err := db.Put(ctx, triple); err != nil {
+		t.Errorf("Put failed: %v", err)
+	}
+
+	// Test Del with logger
+	if err := db.Del(ctx, triple); err != nil {
+		t.Errorf("Del failed: %v", err)
 	}
 }
