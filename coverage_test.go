@@ -1232,3 +1232,31 @@ func TestDB_WithLogger_Operations(t *testing.T) {
 		t.Errorf("Del failed: %v", err)
 	}
 }
+
+// TestDB_Close_Error tests that Close handles store.Close errors
+func TestDB_Close_Error(t *testing.T) {
+	t.Parallel()
+
+	closeErr := errors.New("close error")
+	m := &mockStore{
+		closeFunc: func() error {
+			return closeErr
+		},
+	}
+
+	db, _ := OpenWithDB(m)
+
+	err := db.Close()
+	if err == nil {
+		t.Error("expected error from Close")
+	}
+	if !errors.Is(err, closeErr) {
+		t.Errorf("expected close error, got %v", err)
+	}
+
+	// Second close should return nil (already closed)
+	err = db.Close()
+	if err != nil {
+		t.Errorf("second Close should return nil, got %v", err)
+	}
+}
