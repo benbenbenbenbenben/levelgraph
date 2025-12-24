@@ -816,3 +816,99 @@ func TestFacetIterator_Key_EdgeCase(t *testing.T) {
 		t.Errorf("expected nil key when fullKey length equals prefixLen, got %v", key2)
 	}
 }
+
+// TestJournalEntry_UnmarshalBinary_Errors tests error paths in JournalEntry.UnmarshalBinary
+func TestJournalEntry_UnmarshalBinary_Errors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "empty data",
+			data: []byte{},
+		},
+		{
+			name: "only op byte, no timestamp",
+			data: []byte{1}, // Just the operation byte
+		},
+		{
+			name: "op and partial timestamp",
+			data: []byte{1, 0, 0, 0}, // Op + 3 bytes of timestamp (needs 8)
+		},
+		{
+			name: "op, timestamp, but invalid triple",
+			data: []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF}, // Op + timestamp + garbage
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var entry JournalEntry
+			err := entry.UnmarshalBinary(tc.data)
+			if err == nil {
+				t.Errorf("expected error for %s, got nil", tc.name)
+			}
+		})
+	}
+}
+
+// journalMockIterator is a mock iterator for testing JournalIterator error paths
+type journalMockIterator struct {
+	iterator.Iterator
+	values  [][]byte
+	pos     int
+	started bool
+}
+
+func (m *journalMockIterator) Next() bool {
+	if !m.started {
+		m.started = true
+		m.pos = 0
+		return len(m.values) > 0
+	}
+	m.pos++
+	return m.pos < len(m.values)
+}
+
+func (m *journalMockIterator) Release()     {}
+func (m *journalMockIterator) Error() error { return nil }
+func (m *journalMockIterator) Key() []byte  { return []byte("journal::key") }
+
+func (m *journalMockIterator) Value() []byte {
+	if m.pos >= 0 && m.pos < len(m.values) {
+		return m.values[m.pos]
+	}
+	return nil
+}
+
+// TestJournalIterator_Entry_Error tests that JournalIterator.Entry returns an error
+// when the stored value cannot be unmarshaled
+func TestJournalIterator_Entry_Error(t *testing.T) {
+	t.Parallel()
+
+	// Create a mock iterator with invalid journal entry data
+	mock := &journalMockIterator{
+		values: [][]byte{[]byte("invalid data")}, // Cannot unmarshal as JournalEntry
+	}
+
+	ji := &JournalIterator{
+		iter: mock,
+	}
+
+	if !ji.Next() {
+		t.Fatal("expected Next() to return true")
+	}
+
+	// Entry() should return an error because the data is invalid
+	entry, err := ji.Entry()
+	if err == nil {
+		t.Error("expected error from Entry() with invalid data")
+	}
+	if entry != nil {
+		t.Error("expected nil entry on error")
+	}
+}
