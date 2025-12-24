@@ -1260,3 +1260,33 @@ func TestDB_Close_Error(t *testing.T) {
 		t.Errorf("second Close should return nil, got %v", err)
 	}
 }
+
+// TestNavigator_Clone_WithInitialSolution tests Clone when initialSolution is populated
+func TestNavigator_Clone_WithInitialSolution(t *testing.T) {
+	t.Parallel()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "knows", "bob"))
+	db.Put(ctx, graph.NewTripleFromStrings("bob", "knows", "charlie"))
+
+	// Create navigator and bind a value to populate initialSolution
+	nav := db.Nav(ctx, graph.V("person")).Bind("alice")
+
+	// Clone should copy the initialSolution
+	clone := nav.Clone()
+	if clone == nil {
+		t.Fatal("Clone returned nil")
+	}
+
+	// Both should work independently
+	nav.ArchOut("knows")
+	vals, err := nav.Values()
+	if err != nil {
+		t.Fatalf("Values failed: %v", err)
+	}
+	if len(vals) == 0 {
+		t.Error("expected at least one value from nav")
+	}
+}
