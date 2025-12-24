@@ -1117,3 +1117,77 @@ func TestSolutionIterator_Next_EdgeCases(t *testing.T) {
 		}
 	})
 }
+
+// TestDel_InvalidTriple tests that Del returns an error for invalid triples
+func TestDel_InvalidTriple(t *testing.T) {
+	t.Parallel()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Create invalid triple (empty subject)
+	invalidTriple := &graph.Triple{
+		Subject:   nil,
+		Predicate: []byte("p"),
+		Object:    []byte("o"),
+	}
+
+	err := db.Del(ctx, invalidTriple)
+	if err == nil {
+		t.Error("expected error for Del with invalid triple")
+	}
+	if !errors.Is(err, ErrInvalidTriple) {
+		t.Errorf("expected ErrInvalidTriple, got %v", err)
+	}
+}
+
+// TestPut_InvalidTriple tests that Put returns an error for invalid triples
+func TestPut_InvalidTriple(t *testing.T) {
+	t.Parallel()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Create invalid triple (empty predicate)
+	invalidTriple := &graph.Triple{
+		Subject:   []byte("s"),
+		Predicate: nil,
+		Object:    []byte("o"),
+	}
+
+	err := db.Put(ctx, invalidTriple)
+	if err == nil {
+		t.Error("expected error for Put with invalid triple")
+	}
+	if !errors.Is(err, ErrInvalidTriple) {
+		t.Errorf("expected ErrInvalidTriple, got %v", err)
+	}
+}
+
+// TestGetIterator_EdgeCases tests edge cases in GetIterator
+func TestGetIterator_EdgeCases(t *testing.T) {
+	t.Parallel()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Test with empty pattern (should return all)
+	db.Put(ctx, graph.NewTripleFromStrings("a", "b", "c"))
+
+	iter, err := db.GetIterator(ctx, &graph.Pattern{})
+	if err != nil {
+		t.Fatalf("GetIterator failed: %v", err)
+	}
+	defer iter.Release()
+
+	count := 0
+	for iter.Next() {
+		count++
+	}
+	if count == 0 {
+		t.Error("expected at least one result from GetIterator")
+	}
+}
