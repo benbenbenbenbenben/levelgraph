@@ -564,14 +564,14 @@ Run benchmarks:
 go test -bench=. -benchmem
 ```
 
-Example results:
+Example results (AMD Ryzen Threadripper 3960X):
 
 ```
-BenchmarkPut-24              107331    10462 ns/op    4261 B/op    33 allocs/op
-BenchmarkGet-24               49762    24005 ns/op    7467 B/op   171 allocs/op
-BenchmarkSearch-24            79240    15024 ns/op    6696 B/op   122 allocs/op
-BenchmarkSearchJoin-24        10000   103245 ns/op   58649 B/op   792 allocs/op
-BenchmarkNavigator-24          9805   106973 ns/op   60318 B/op   831 allocs/op
+BenchmarkPut-24               271693    11143 ns/op    3346 B/op    29 allocs/op
+BenchmarkGet-24               431667     5337 ns/op    3344 B/op    81 allocs/op
+BenchmarkSearch-24            479586     4628 ns/op    4520 B/op    70 allocs/op
+BenchmarkSearchJoin-24         81771    29709 ns/op   26032 B/op   386 allocs/op
+BenchmarkNavigator-24          72498    33393 ns/op   27549 B/op   424 allocs/op
 ```
 
 ## Testing
