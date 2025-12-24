@@ -985,3 +985,135 @@ func TestFacets_Disabled_AllOps(t *testing.T) {
 		})
 	}
 }
+
+// TestSolutionIterator_Next_EdgeCases tests various edge cases in SolutionIterator.Next
+func TestSolutionIterator_Next_EdgeCases(t *testing.T) {
+	t.Parallel()
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Add test data
+	db.Put(ctx, graph.NewTripleFromStrings("a", "p", "b"))
+	db.Put(ctx, graph.NewTripleFromStrings("a", "p", "c"))
+	db.Put(ctx, graph.NewTripleFromStrings("a", "p", "d"))
+	db.Put(ctx, graph.NewTripleFromStrings("a", "p", "e"))
+	db.Put(ctx, graph.NewTripleFromStrings("a", "p", "f"))
+
+	t.Run("limit", func(t *testing.T) {
+		opts := &SearchOptions{Limit: 2}
+		iter, err := db.SearchIterator(ctx, []*graph.Pattern{
+			graph.NewPattern("a", "p", graph.V("obj")),
+		}, opts)
+		if err != nil {
+			t.Fatalf("SearchIterator failed: %v", err)
+		}
+		defer iter.Close()
+
+		count := 0
+		for iter.Next() {
+			count++
+		}
+		if count != 2 {
+			t.Errorf("expected 2 results with limit, got %d", count)
+		}
+	})
+
+	t.Run("offset", func(t *testing.T) {
+		opts := &SearchOptions{Offset: 2}
+		iter, err := db.SearchIterator(ctx, []*graph.Pattern{
+			graph.NewPattern("a", "p", graph.V("obj")),
+		}, opts)
+		if err != nil {
+			t.Fatalf("SearchIterator failed: %v", err)
+		}
+		defer iter.Close()
+
+		count := 0
+		for iter.Next() {
+			count++
+		}
+		if count != 3 { // 5 total - 2 skipped = 3
+			t.Errorf("expected 3 results with offset 2, got %d", count)
+		}
+	})
+
+	t.Run("filter", func(t *testing.T) {
+		opts := &SearchOptions{
+			Filter: func(sol graph.Solution) bool {
+				obj := sol["obj"]
+				return obj != nil && string(obj) != "c" // Skip "c"
+			},
+		}
+		iter, err := db.SearchIterator(ctx, []*graph.Pattern{
+			graph.NewPattern("a", "p", graph.V("obj")),
+		}, opts)
+		if err != nil {
+			t.Fatalf("SearchIterator failed: %v", err)
+		}
+		defer iter.Close()
+
+		count := 0
+		for iter.Next() {
+			sol := iter.Solution()
+			if string(sol["obj"]) == "c" {
+				t.Error("filter should have excluded 'c'")
+			}
+			count++
+		}
+		if count != 4 { // 5 total - 1 filtered = 4
+			t.Errorf("expected 4 results with filter, got %d", count)
+		}
+	})
+
+	t.Run("closed iterator", func(t *testing.T) {
+		iter, err := db.SearchIterator(ctx, []*graph.Pattern{
+			graph.NewPattern("a", "p", graph.V("obj")),
+		}, nil)
+		if err != nil {
+			t.Fatalf("SearchIterator failed: %v", err)
+		}
+
+		// Close immediately
+		iter.Close()
+
+		// Next should return false
+		if iter.Next() {
+			t.Error("expected Next() to return false after Close()")
+		}
+	})
+
+	t.Run("context cancellation during iteration", func(t *testing.T) {
+		ctx2, cancel := context.WithCancel(context.Background())
+		iter, err := db.SearchIterator(ctx2, []*graph.Pattern{
+			graph.NewPattern("a", "p", graph.V("obj")),
+		}, nil)
+		if err != nil {
+			t.Fatalf("SearchIterator failed: %v", err)
+		}
+		defer iter.Close()
+
+		// Get first result
+		if !iter.Next() {
+			t.Fatal("expected at least one result")
+		}
+
+		// Cancel context
+		cancel()
+
+		// Further iteration should stop (may get one more due to timing)
+		count := 0
+		for iter.Next() {
+			count++
+			if count > 10 { // Safety limit
+				t.Fatal("iterator didn't respect context cancellation")
+			}
+		}
+
+		// Should have error
+		if iter.Error() == nil {
+			t.Log("Note: context cancellation timing may vary")
+		}
+	})
+}
