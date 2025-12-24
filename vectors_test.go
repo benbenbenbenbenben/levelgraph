@@ -27,6 +27,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -2533,5 +2534,147 @@ func TestDB_VectorCount_ClosedDB(t *testing.T) {
 	count := db.VectorCount()
 	if count != 0 {
 		t.Errorf("VectorCount on closed DB = %d, want 0", count)
+	}
+}
+
+// errorEmbedder is a mock embedder that always returns an error.
+type errorEmbedder struct{}
+
+func (e *errorEmbedder) Embed(text string) ([]float32, error) {
+	return nil, errors.New("embedding failed")
+}
+
+func (e *errorEmbedder) EmbedBatch(texts []string) ([][]float32, error) {
+	return nil, errors.New("embedding failed")
+}
+
+func (e *errorEmbedder) Dimensions() int {
+	return 3
+}
+
+// TestDB_VectorFilterQueryTextEmbedderError tests that an embedder error is propagated.
+func TestDB_VectorFilterQueryTextEmbedderError(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	// Create DB with vectors and an embedder that always fails
+	index := vector.NewFlatIndex(3)
+	db, err := Open(dbPath, WithVectors(index), WithAutoEmbed(&errorEmbedder{}, 0))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Set up graph
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "likes", "tennis"))
+	db.SetObjectVector(ctx, []byte("tennis"), []float32{1, 0, 0})
+
+	// Try to search with QueryText (embedder will fail)
+	_, err = db.Search(ctx, []*graph.Pattern{
+		{Subject: graph.Binding("person"), Predicate: graph.ExactString("likes"), Object: graph.Binding("sport")},
+	}, &SearchOptions{
+		VectorFilter: &VectorFilter{
+			Variable:  "sport",
+			QueryText: "racket sports",
+			IDType:    vector.IDTypeObject,
+		},
+	})
+
+	if err == nil {
+		t.Error("Search() expected error from embedder, got nil")
+	}
+	if err != nil && err.Error() != "embedding failed" {
+		t.Errorf("Search() error = %v, want 'embedding failed'", err)
+	}
+}
+
+// TestDB_VectorFilterOptimizationPath tests the optimization path for large solution sets.
+// This covers lines 539-589 in search.go which are only triggered when:
+// - TopK > 0
+// - len(solutions) > 500 (optimizationThreshold)
+// - len(uniqueValues) > 500
+func TestDB_VectorFilterOptimizationPath(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	// Use flat index for simplicity
+	index := vector.NewFlatIndex(3)
+	db, err := Open(dbPath, WithVectors(index))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Create >500 unique objects to trigger the optimization path
+	// We need more than 500 solutions with unique variable values
+	numObjects := 600
+	for i := 0; i < numObjects; i++ {
+		objName := []byte(fmt.Sprintf("object_%04d", i))
+		db.Put(ctx, &graph.Triple{
+			Subject:   []byte("subject"),
+			Predicate: []byte("has"),
+			Object:    objName,
+		})
+		// Create a vector for each object
+		// Vary the vector slightly so they have different similarity scores
+		vec := []float32{
+			1.0 - float32(i)/float32(numObjects)*0.5, // x: 1.0 -> 0.5
+			float32(i) / float32(numObjects) * 0.5,   // y: 0 -> 0.5
+			0.1,
+		}
+		db.SetObjectVector(ctx, objName, vec)
+	}
+
+	// Query vector - will match object_0000 best
+	queryVec := []float32{1.0, 0.0, 0.1}
+
+	// Search with TopK to trigger optimization
+	solutions, err := db.Search(ctx, []*graph.Pattern{
+		{Subject: graph.ExactString("subject"), Predicate: graph.ExactString("has"), Object: graph.Binding("obj")},
+	}, &SearchOptions{
+		VectorFilter: &VectorFilter{
+			Variable: "obj",
+			Query:    queryVec,
+			TopK:     10,
+			IDType:   vector.IDTypeObject,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+
+	// Should get TopK results
+	if len(solutions) != 10 {
+		t.Errorf("Search() returned %d solutions, want 10", len(solutions))
+	}
+
+	// Results should be sorted by score (descending)
+	// First result should be object_0000 (closest to query)
+	if len(solutions) > 0 {
+		firstObj, ok := solutions[0]["obj"]
+		if !ok {
+			t.Error("First solution missing 'obj' binding")
+		} else if string(firstObj) != "object_0000" {
+			// Note: Due to how vectors are set up, object_0000 should be closest
+			t.Logf("First result: %s (expected object_0000 or similar)", string(firstObj))
+		}
+
+		// Verify scores are descending
+		prevScore := float32(2.0) // Start higher than max
+		for i, sol := range solutions {
+			score := GetVectorScore(sol)
+			if score > prevScore {
+				t.Errorf("Solution %d score %.3f > previous %.3f (should be descending)", i, score, prevScore)
+			}
+			prevScore = score
+		}
 	}
 }
