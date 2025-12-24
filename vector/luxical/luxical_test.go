@@ -38,6 +38,10 @@ func getModelDir() string {
 }
 
 func TestNewEmbedder(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping embedder test in short mode")
+	}
+
 	modelDir := getModelDir()
 	if _, err := os.Stat(modelDir); os.IsNotExist(err) {
 		t.Skipf("model directory not found: %s", modelDir)
@@ -57,6 +61,10 @@ func TestNewEmbedder(t *testing.T) {
 }
 
 func TestNewEmbedderInt8(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping embedder test in short mode")
+	}
+
 	modelDir := getModelDir()
 	if _, err := os.Stat(modelDir); os.IsNotExist(err) {
 		t.Skipf("model directory not found: %s", modelDir)
@@ -76,6 +84,10 @@ func TestNewEmbedderInt8(t *testing.T) {
 }
 
 func TestEmbed(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping embedder test in short mode")
+	}
+
 	modelDir := getModelDir()
 	if _, err := os.Stat(modelDir); os.IsNotExist(err) {
 		t.Skipf("model directory not found: %s", modelDir)
@@ -110,6 +122,10 @@ func TestEmbed(t *testing.T) {
 }
 
 func TestEmbedBatch(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping embedder test in short mode")
+	}
+
 	modelDir := getModelDir()
 	if _, err := os.Stat(modelDir); os.IsNotExist(err) {
 		t.Skipf("model directory not found: %s", modelDir)
@@ -139,6 +155,10 @@ func TestEmbedBatch(t *testing.T) {
 }
 
 func TestCosineSimilarity(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping embedder test in short mode")
+	}
+
 	modelDir := getModelDir()
 	if _, err := os.Stat(modelDir); os.IsNotExist(err) {
 		t.Skipf("model directory not found: %s", modelDir)

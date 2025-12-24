@@ -4,6 +4,14 @@
 test:
 	go test -race ./...
 
+# Run fast tests (skip slow luxical embedder tests, ~1s vs ~25s)
+test-fast:
+	go test ./... -short
+
+# Run tests without race detector (faster, still includes luxical)
+test-quick:
+	go test ./...
+
 # Run tests with coverage report
 cover:
 	go test -cover ./...
@@ -103,7 +111,9 @@ serve-tinygo: playground-tinygo
 help:
 	@echo "Available targets:"
 	@echo "  build        - Build CLI tool"
-	@echo "  test         - Run tests with race detector"
+	@echo "  test         - Run tests with race detector (slow, ~30s)"
+	@echo "  test-fast    - Run tests in short mode (~2s, skips embedder)"
+	@echo "  test-quick   - Run tests without race detector (~25s)"
 	@echo "  cover        - Run tests with coverage report"
 	@echo "  cover-html   - Generate HTML coverage report"
 	@echo "  bench        - Run benchmarks"
