@@ -912,3 +912,76 @@ func TestJournalIterator_Entry_Error(t *testing.T) {
 		t.Error("expected nil entry on error")
 	}
 }
+
+// TestFacets_Disabled_AllOps tests all facet operations return ErrFacetsDisabled
+// when facets are not enabled.
+func TestFacets_Disabled_AllOps(t *testing.T) {
+	t.Parallel()
+
+	// Open DB without facets enabled
+	dir := t.TempDir()
+	db, err := Open(dir) // No WithFacets()
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	triple := graph.NewTripleFromStrings("alice", "knows", "bob")
+
+	// Test all facet operations return ErrFacetsDisabled
+	tests := []struct {
+		name string
+		fn   func() error
+	}{
+		{"SetFacet", func() error {
+			return db.SetFacet(ctx, FacetSubject, []byte("alice"), []byte("key"), []byte("val"))
+		}},
+		{"GetFacet", func() error {
+			_, err := db.GetFacet(ctx, FacetSubject, []byte("alice"), []byte("key"))
+			return err
+		}},
+		{"GetFacets", func() error {
+			_, err := db.GetFacets(ctx, FacetSubject, []byte("alice"))
+			return err
+		}},
+		{"DelFacet", func() error {
+			return db.DelFacet(ctx, FacetSubject, []byte("alice"), []byte("key"))
+		}},
+		{"SetTripleFacet", func() error {
+			return db.SetTripleFacet(ctx, triple, []byte("key"), []byte("val"))
+		}},
+		{"GetTripleFacet", func() error {
+			_, err := db.GetTripleFacet(ctx, triple, []byte("key"))
+			return err
+		}},
+		{"GetTripleFacets", func() error {
+			_, err := db.GetTripleFacets(ctx, triple)
+			return err
+		}},
+		{"DelTripleFacet", func() error {
+			return db.DelTripleFacet(ctx, triple, []byte("key"))
+		}},
+		{"DelAllTripleFacets", func() error {
+			return db.DelAllTripleFacets(ctx, triple)
+		}},
+		{"GetFacetIterator", func() error {
+			_, err := db.GetFacetIterator(ctx, FacetSubject, []byte("alice"))
+			return err
+		}},
+		{"GetTripleFacetIterator", func() error {
+			_, err := db.GetTripleFacetIterator(ctx, triple)
+			return err
+		}},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.fn()
+			if !errors.Is(err, ErrFacetsDisabled) {
+				t.Errorf("%s: expected ErrFacetsDisabled, got %v", tc.name, err)
+			}
+		})
+	}
+}
