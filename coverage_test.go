@@ -128,6 +128,9 @@ func TestDB_Closed_Errors_Extra(t *testing.T) {
 	if _, err := db.JournalCount(ctx, time.Now()); !errors.Is(err, ErrClosed) {
 		t.Error("expected ErrClosed")
 	}
+	if _, err := db.GetIterator(ctx, &graph.Pattern{}); !errors.Is(err, ErrClosed) {
+		t.Error("expected ErrClosed for GetIterator")
+	}
 }
 
 func TestDB_ContextDone_Errors_Extra(t *testing.T) {
