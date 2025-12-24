@@ -1,6 +1,6 @@
 module github.com/benbenbenbenbenben/levelgraph
 
-go 1.25.1
+go 1.21
 
 require github.com/syndtr/goleveldb v1.0.0
 
