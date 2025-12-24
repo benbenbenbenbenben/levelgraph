@@ -27,6 +27,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -1288,5 +1289,72 @@ func TestNavigator_Clone_WithInitialSolution(t *testing.T) {
 	}
 	if len(vals) == 0 {
 		t.Error("expected at least one value from nav")
+	}
+}
+
+// TestReplayJournal_ClosedDB tests ReplayJournal on a closed database.
+func TestReplayJournal_ClosedDB(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	db, err := Open(dbPath, WithJournal())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+
+	ctx := context.Background()
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "knows", "bob"))
+
+	// Create target DB
+	targetPath := filepath.Join(dir, "target.db")
+	targetDB, err := Open(targetPath, WithJournal())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer targetDB.Close()
+
+	// Close the source DB
+	db.Close()
+
+	// ReplayJournal on closed DB should fail
+	_, err = db.ReplayJournal(ctx, time.Time{}, targetDB)
+	if !errors.Is(err, ErrClosed) {
+		t.Errorf("ReplayJournal on closed DB: expected ErrClosed, got %v", err)
+	}
+}
+
+// TestReplayJournal_WithLogger tests ReplayJournal with logger enabled.
+func TestReplayJournal_WithLogger(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	db, err := Open(dbPath, WithJournal(), WithLogger(logger))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	db.Put(ctx, graph.NewTripleFromStrings("alice", "knows", "bob"))
+
+	// Create target DB
+	targetPath := filepath.Join(dir, "target.db")
+	targetDB, err := Open(targetPath)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer targetDB.Close()
+
+	// ReplayJournal with logger should log
+	count, err := db.ReplayJournal(ctx, time.Time{}, targetDB)
+	if err != nil {
+		t.Errorf("ReplayJournal() error = %v", err)
+	}
+	if count != 1 {
+		t.Errorf("ReplayJournal count = %d, want 1", count)
 	}
 }
