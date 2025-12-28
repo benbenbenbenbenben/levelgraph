@@ -24,6 +24,7 @@ Priority: Low - diminishing returns beyond 90%
 
 
 
+
 ---
 **Autopilot Note (2025-12-24)**: Session improved coverage from 88.5% to 90.5%:
 - Navigator.Clone: 80% → 100%
@@ -53,3 +54,9 @@ Remaining uncovered lines are mostly error paths requiring complex mocking (bina
 - pkg/graph: 95.3%
 - pkg/index: 95.0%
 - memstore: 94.7%
+
+---
+**Autopilot Note (2025-12-28)**: Added 8 new edge case tests for SearchVectorsByText and EmbedAndSetVector. Coverage improved:
+- Main package: 90.5% → 91.7%
+- SearchVectorsByText: 57.9% → 89.5%
+- EmbedAndSetVector: 52.9% → 100%
