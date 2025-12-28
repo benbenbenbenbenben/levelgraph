@@ -2678,3 +2678,189 @@ func TestDB_VectorFilterOptimizationPath(t *testing.T) {
 		}
 	}
 }
+
+// TestDB_SearchVectorsByText_ClosedDB tests SearchVectorsByText on a closed database.
+func TestDB_SearchVectorsByText_ClosedDB(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	embedder := &mockEmbedder{dims: 3}
+	db, err := Open(dbPath, WithVectors(index), WithAutoEmbed(embedder, AutoEmbedObjects))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+
+	db.Close() // Close the DB
+
+	ctx := context.Background()
+	_, err = db.SearchVectorsByText(ctx, "test query", 5)
+	if err == nil || !errors.Is(err, ErrClosed) {
+		t.Errorf("SearchVectorsByText on closed DB: expected ErrClosed, got %v", err)
+	}
+}
+
+// TestDB_SearchVectorsByText_ContextCanceled tests SearchVectorsByText with canceled context.
+func TestDB_SearchVectorsByText_ContextCanceled(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	embedder := &mockEmbedder{dims: 3}
+	db, err := Open(dbPath, WithVectors(index), WithAutoEmbed(embedder, AutoEmbedObjects))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	_, err = db.SearchVectorsByText(ctx, "test query", 5)
+	if err == nil || !errors.Is(err, context.Canceled) {
+		t.Errorf("SearchVectorsByText with canceled context: expected context.Canceled, got %v", err)
+	}
+}
+
+// TestDB_SearchVectorsByText_EmbedderError tests SearchVectorsByText when embedder fails.
+func TestDB_SearchVectorsByText_EmbedderError(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	embedder := &errorEmbedder{} // Always fails
+	db, err := Open(dbPath, WithVectors(index), WithAutoEmbed(embedder, AutoEmbedObjects))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err = db.SearchVectorsByText(ctx, "test query", 5)
+	if err == nil {
+		t.Error("SearchVectorsByText with failing embedder should return error")
+	}
+}
+
+// TestDB_EmbedAndSetVector_ClosedDB tests EmbedAndSetVector on a closed database.
+func TestDB_EmbedAndSetVector_ClosedDB(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	embedder := &mockEmbedder{dims: 3}
+	db, err := Open(dbPath, WithVectors(index), WithAutoEmbed(embedder, AutoEmbedObjects))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+
+	db.Close() // Close the DB
+
+	ctx := context.Background()
+	id := vector.MakeID(vector.IDTypeObject, []byte("test"))
+	err = db.EmbedAndSetVector(ctx, id, "test text")
+	if err == nil || !errors.Is(err, ErrClosed) {
+		t.Errorf("EmbedAndSetVector on closed DB: expected ErrClosed, got %v", err)
+	}
+}
+
+// TestDB_EmbedAndSetVector_NoVectors tests EmbedAndSetVector without vectors enabled.
+func TestDB_EmbedAndSetVector_NoVectors(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	// Open without vectors
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	id := vector.MakeID(vector.IDTypeObject, []byte("test"))
+	err = db.EmbedAndSetVector(ctx, id, "test text")
+	if err != ErrVectorsDisabled {
+		t.Errorf("EmbedAndSetVector without vectors: expected ErrVectorsDisabled, got %v", err)
+	}
+}
+
+// TestDB_EmbedAndSetVector_NoEmbedder tests EmbedAndSetVector without an embedder.
+func TestDB_EmbedAndSetVector_NoEmbedder(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	// Open with vectors but no embedder
+	db, err := Open(dbPath, WithVectors(index))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	id := vector.MakeID(vector.IDTypeObject, []byte("test"))
+	err = db.EmbedAndSetVector(ctx, id, "test text")
+	if err != ErrEmbedderRequired {
+		t.Errorf("EmbedAndSetVector without embedder: expected ErrEmbedderRequired, got %v", err)
+	}
+}
+
+// TestDB_EmbedAndSetVector_ContextCanceled tests EmbedAndSetVector with canceled context.
+func TestDB_EmbedAndSetVector_ContextCanceled(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	embedder := &mockEmbedder{dims: 3}
+	db, err := Open(dbPath, WithVectors(index), WithAutoEmbed(embedder, AutoEmbedObjects))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	id := vector.MakeID(vector.IDTypeObject, []byte("test"))
+	err = db.EmbedAndSetVector(ctx, id, "test text")
+	if err == nil || !errors.Is(err, context.Canceled) {
+		t.Errorf("EmbedAndSetVector with canceled context: expected context.Canceled, got %v", err)
+	}
+}
+
+// TestDB_EmbedAndSetVector_EmbedderError tests EmbedAndSetVector when embedder fails.
+func TestDB_EmbedAndSetVector_EmbedderError(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+
+	index := vector.NewFlatIndex(3)
+	embedder := &errorEmbedder{} // Always fails
+	db, err := Open(dbPath, WithVectors(index), WithAutoEmbed(embedder, AutoEmbedObjects))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	id := vector.MakeID(vector.IDTypeObject, []byte("test"))
+	err = db.EmbedAndSetVector(ctx, id, "test text")
+	if err == nil {
+		t.Error("EmbedAndSetVector with failing embedder should return error")
+	}
+}
