@@ -278,6 +278,10 @@ func (db *DB) materializeSolutions(solutions []graph.Solution, pattern *graph.Pa
 }
 
 // SearchIterator returns an iterator for search results.
+//
+// Note: VectorFilter is not supported with SearchIterator. If you need
+// vector-filtered search results, use Search() instead which returns all
+// results at once after applying vector filtering and sorting.
 func (db *DB) SearchIterator(ctx context.Context, patterns []*graph.Pattern, opts *SearchOptions) (*SolutionIterator, error) {
 	if opts == nil {
 		opts = &SearchOptions{}
