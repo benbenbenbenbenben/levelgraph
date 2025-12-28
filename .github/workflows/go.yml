@@ -18,7 +18,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version: '1.25.5'
     - name: Verify formatting
       run: |
         if [ -n "$(gofmt -l .)" ]; then
@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ['1.21', '1.22', '1.23']
+        go-version: ['1.25.5']
     steps:
     - uses: actions/checkout@v4
     - name: Set up Go ${{ matrix.go-version }}
@@ -50,7 +50,7 @@ jobs:
       run: go test -v -race -coverprofile=coverage.out ./...
     - name: Upload coverage
       uses: codecov/codecov-action@v4
-      if: matrix.go-version == '1.23'
+      if: matrix.go-version == '1.25.5'
       with:
         files: ./coverage.out
         fail_ci_if_error: false
@@ -62,6 +62,6 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version: '1.25.5'
     - name: Run benchmarks
       run: go test -bench=. -benchmem -benchtime=1s ./...
