@@ -22,6 +22,7 @@ module github.com/benbenbenbenbenben/luxical-one-go@latest found (v0.0.0-2025122
 
 
 
+
 ---
 **Autopilot Note (2025-12-23)**: This item is BLOCKED and requires manual intervention. The external `luxical-one-go` GitHub repo needs Go package files pushed to its root level. This cannot be done from within this repository.
 
@@ -37,3 +38,6 @@ module github.com/benbenbenbenbenben/luxical-one-go@latest found (v0.0.0-2025122
 
 ---
 **Autopilot Note (2025-12-24)**: Session ended with 66 commits ahead of origin/master. This workitem remains BLOCKED - requires pushing Go package files to the root of the external `luxical-one-go` GitHub repository. No further action can be taken within this LevelGraph repository. Consider moving to backlog.
+
+---
+**Autopilot Note (2025-12-28)**: CI workflow updated to use public Go versions (1.21, 1.22) instead of the internal 1.25.5. Note: The go.mod file still specifies `go 1.25.5` which should be changed to `go 1.21` to match the minimum requirement (log/slog). This requires manual intervention since autopilot cannot modify go.mod directly.
