@@ -23,6 +23,7 @@ Priority: Low - diminishing returns beyond 90%
 ## Notes
 
 
+
 ---
 **Autopilot Note (2025-12-24)**: Session improved coverage from 88.5% to 90.5%:
 - Navigator.Clone: 80% → 100%
@@ -42,3 +43,13 @@ Added tests for VectorFilter embedder error and optimization path. Remaining unc
 - vector/luxical: 89.5%
 
 Remaining uncovered lines are mostly error paths requiring complex mocking (binary.Write failures, iterator errors, etc.) - diminishing returns.
+
+---
+**Autopilot Note (2025-12-28)**: Go version upgraded to 1.25.5 LTS. All tests pass, build succeeds. Staticcheck updated and passes. Coverage remains excellent:
+- levelgraph (main): 90.5%
+- cmd/levelgraph: 89.7%
+- vector: 97.8%
+- vector/luxical: 89.5%
+- pkg/graph: 95.3%
+- pkg/index: 95.0%
+- memstore: 94.7%
