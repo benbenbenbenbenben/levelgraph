@@ -383,7 +383,7 @@ func TestMakeIDParseIDWithColons(t *testing.T) {
 		{
 			name:   "binary data with colons",
 			idType: IDTypeObject,
-			parts:  [][]byte{[]byte{0x3A, 0x00, 0x3A, 0xFF, 0x3A}}, // 0x3A is ':'
+			parts:  [][]byte{{0x3A, 0x00, 0x3A, 0xFF, 0x3A}}, // 0x3A is ':'
 		},
 	}
 
