@@ -1,4 +1,4 @@
-.PHONY: test bench bench-update lint fmt vet clean examples check wasm playground serve build cover
+.PHONY: test bench bench-update lint fmt vet clean examples check wasm playground serve build cover nolij
 
 # Run tests with race detector
 test:
@@ -107,10 +107,18 @@ serve-tinygo: playground-tinygo
 	@echo "Press Ctrl+C to stop"
 	@cd playground && python3 -m http.server 8080
 
+# Build nolij CLI tool
+nolij:
+	@echo "Building nolij..."
+	@go build -o nolij ./example/nolij
+	@echo "nolij built. Run './nolij <command>' to use it, or './nolij install' to install to PATH."
+	@echo "Available commands: add, del, find, from, path, join, sync, stats, dump, nuke, install"
+
 # Show help
 help:
 	@echo "Available targets:"
 	@echo "  build        - Build CLI tool"
+	@echo "  nolij        - Build nolij CLI tool"
 	@echo "  test         - Run tests with race detector (slow, ~30s)"
 	@echo "  test-fast    - Run tests in short mode (~2s, skips embedder)"
 	@echo "  test-quick   - Run tests without race detector (~25s)"
