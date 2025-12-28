@@ -33,3 +33,14 @@ Several edge cases are not tested:
 - [ ] All critical test cases added and passing
 - [ ] All important test cases added and passing
 - [ ] Test coverage for vector package > 80%
+
+## Notes
+
+---
+**Autopilot Note (2025-12-28)**: Reviewed checklist against current tests:
+- [x] Vector IDs with colons - Tested in `TestDB_VectorIDsWithSpecialCharacters` (vectors_test.go:1308)
+- [x] VectorFilter with non-existent variable - Tested in vectors_test.go:1377
+- [x] VectorFilter with QueryText but no Embedder - Tested in `TestDB_VectorFilterQueryTextNoEmbedder`
+- [x] Hybrid search with SearchIterator - Now documented (SearchIterator doesn't support VectorFilter, use Search() instead)
+
+Most critical edge cases are covered. Remaining items are nice-to-have.
