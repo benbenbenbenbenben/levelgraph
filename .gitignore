@@ -30,6 +30,9 @@ vendor/
 .DS_Store
 Thumbs.db
 
+# Go distribution tarballs
+go*.tar.gz
+
 # Test databases
 db_test/
 *.db/
